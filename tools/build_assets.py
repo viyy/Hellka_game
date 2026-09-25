@@ -154,6 +154,15 @@ print('bg_far/bg_mid 1920x540 (зеркальная стыковка)')
 por = Image.open(raw('eefea498')).convert('RGBA').resize((56, 56), Image.LANCZOS)
 por.save(os.path.join(OUT, 'portrait.png')); manifest['portrait'] = {'frames': 1, 'w': 56, 'h': 56}
 
+# ── favicon из портрета ──
+src = Image.open(raw('eefea498')).convert('RGBA')
+w, h = src.size; m = int(min(w, h) * 0.86); src = src.crop(((w - m) // 2, (h - m) // 2 - m // 12, (w + m) // 2, (h + m) // 2 - m // 12))  # лицо крупнее
+src.resize((180, 180), Image.LANCZOS).save(os.path.join(ROOT, 'apple-touch-icon.png'))
+src.resize((32, 32), Image.LANCZOS).save(os.path.join(ROOT, 'favicon-32.png'))
+src.resize((192, 192), Image.LANCZOS).save(os.path.join(ROOT, 'icon-192.png'))
+src.resize((64, 64), Image.LANCZOS).save(os.path.join(ROOT, 'favicon.ico'), sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
+print('favicon.ico, favicon-32.png, apple-touch-icon.png, icon-192.png')
+
 json.dump(manifest, open(os.path.join(OUT, 'manifest.json'), 'w'), indent=1)
 # manifest.js подключается тегом <script> и работает даже при открытии index.html через file://
 with open(os.path.join(OUT, 'manifest.js'), 'w') as f:
