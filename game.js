@@ -513,13 +513,17 @@ cv.addEventListener('pointerdown', e => {
   if (si >= 0) { dragSlider = si; sliderSet(si, p); cv.setPointerCapture(e.pointerId); if (SLIDERS[si].key === 'sfx') SFX.coin(); return; }
   if (state === 'ach') { closeAch(); return; }
   if (state === 'menu' && inBtn(p, ACH_BTN)) { openAch('menu'); return; }
+  if (state === 'menu' && inBtn(p, AUTHOR_BTN)) { window.open(AUTHOR.url, '_blank', 'noopener'); return; }
   if (state === 'pause' && inBtn(p, ACH_BTN_PAUSE)) { openAch('pause'); return; }
   if (state === 'menu' || state === 'over') { startGame(); return; }
   if (p.x > W - 70 && p.y < 70) { togglePause(); return; }
   if (state === 'pause') { togglePause(); return; }
   if (!isTouch) jumpPressed = true;
 });
-cv.addEventListener('pointermove', e => { if (dragSlider >= 0) sliderSet(dragSlider, toGame(e)); });
+cv.addEventListener('pointermove', e => {
+  if (dragSlider >= 0) sliderSet(dragSlider, toGame(e));
+  authorHover = state === 'menu' && inBtn(toGame(e), AUTHOR_BTN); cv.style.cursor = authorHover ? 'pointer' : '';
+});
 cv.addEventListener('pointerup', e => { if (dragSlider >= 0 && SLIDERS[dragSlider].key === 'sfx') SFX.coin(); dragSlider = -1; });
 cv.addEventListener('pointercancel', () => { dragSlider = -1; });
 function toGame(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; }
@@ -639,6 +643,17 @@ function drawAchButton(b) {
   ctx.fillText(`★ Достижения  ${n}/${ACH.length}`, b.x + b.w / 2, b.y + 27);
 }
 function inBtn(p, b) { return p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h; }
+// ── автор ──
+const AUTHOR = { name: 'Nelfias', tg: '@nelfias_cosph', url: 'https://t.me/nelfias_cosph' };
+const AUTHOR_BTN = { x: W - 250, y: H - 58, w: 230, h: 40 }; // не наезжает на проценты ползунков
+let authorHover = false;
+function drawAuthor() {
+  panel(AUTHOR_BTN.x, AUTHOR_BTN.y, AUTHOR_BTN.w, AUTHOR_BTN.h);
+  ctx.textAlign = 'right'; ctx.font = '13px monospace'; ctx.fillStyle = '#c0a0a8';
+  ctx.fillText('автор: ' + AUTHOR.name, AUTHOR_BTN.x + AUTHOR_BTN.w - 14, AUTHOR_BTN.y + 16);
+  ctx.font = 'bold 15px monospace'; ctx.fillStyle = authorHover ? '#ffffff' : '#7fc8ff';
+  ctx.fillText('✈ ' + AUTHOR.tg, AUTHOR_BTN.x + AUTHOR_BTN.w - 14, AUTHOR_BTN.y + 33);
+}
 
 function startGame() {
   G = {
@@ -980,6 +995,7 @@ function drawMenu(t) {
   drawSliders(444);
   if (best) centerText('рекорд: ' + best, 216, 17, '#ffb0a8');
   drawAchButton(ACH_BTN);
+  drawAuthor();
 }
 function drawOver() {
   drawBg(G.camX, G.t); drawLava(G.camX, G.t); drawWorld();
