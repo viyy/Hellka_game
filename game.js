@@ -532,10 +532,14 @@ const inRight = () => keys.ArrowRight || keys.KeyD || tb.right;
 const inJumpHeld = () => keys.Space || keys.ArrowUp || keys.KeyW || keys.__tj;
 
 function resize() {
-  const s = Math.min(innerWidth / W, innerHeight / H);
+  const vw = (visualViewport && visualViewport.width) || innerWidth || document.documentElement.clientWidth || W;
+  const vh = (visualViewport && visualViewport.height) || innerHeight || document.documentElement.clientHeight || H;
+  const s = Math.max(0.1, Math.min(vw / W, vh / H));
   cv.style.width = (W * s | 0) + 'px'; cv.style.height = (H * s | 0) + 'px';
 }
-addEventListener('resize', resize); resize();
+addEventListener('resize', resize); addEventListener('orientationchange', () => setTimeout(resize, 150));
+if (window.visualViewport) visualViewport.addEventListener('resize', resize);
+resize(); setTimeout(resize, 300); // в standalone-окне на Android размеры иногда приходят с задержкой
 
 // ───────────────────────── ИГРА ─────────────────────────
 const GRAVITY = 1900, JUMP_V = 730, MOVE = 190;

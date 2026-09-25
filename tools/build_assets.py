@@ -279,10 +279,19 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
+  // Навигация (открытие страницы, в т.ч. из ярлыка PWA): сначала сеть, при неудаче — кэш index.html
+  if (e.request.mode === 'navigate') {
+    e.respondWith(fetch(e.request).then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put('./', copy)); }
+      return res;
+    }).catch(() => caches.match('./').then(r => r || caches.match('index.html'))));
+    return;
+  }
+  // Остальное: кэш, затем сеть с докэшированием
   e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(r => r || fetch(e.request).then(res => {
     if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
     return res;
-  })).catch(() => caches.match('./')));
+  })).catch(() => new Response('', { status: 504, statusText: 'offline' })));
 });
 """ % (ver, json.dumps(files, ensure_ascii=False, indent=0))
 open(os.path.join(ROOT, 'sw.js'), 'w', encoding='utf-8').write(sw)
