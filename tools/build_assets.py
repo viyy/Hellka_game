@@ -120,7 +120,10 @@ def black_pair(prefix, size):
         parts.append(p.resize((size, size), Image.LANCZOS).convert('RGBA'))
     return parts
 save_sheet('tile', black_pair('662ed930', 96), target_h=48)
-save_sheet('lava', black_pair('4d9a5911', 128), target_h=64)
+# лава: каждый кадр = тайл + его зеркало, чтобы повтор по горизонтали был бесшовным
+def mirror_pair(im):
+    out = Image.new('RGBA', (im.width * 2, im.height)); out.paste(im, (0, 0)); out.paste(im.transpose(Image.FLIP_LEFT_RIGHT), (im.width, 0)); return out
+save_sheet('lava', [mirror_pair(t) for t in black_pair('4d9a5911', 128)], target_h=64)
 
 # ── фоны ──
 # Фоны. Если в assets_raw лежат файлы с именами bg_sky.png / bg_far.png / bg_mid.png — берём их,
@@ -150,6 +153,16 @@ mid = seamless(chroma_key(Image.open(raw_named('bg_mid.png', 'fb06b7b0'))), (960
 mid.save(os.path.join(OUT, 'bg_mid.png')); manifest['bg_mid'] = {'frames': 1, 'w': 1920, 'h': 540}
 print('bg_far/bg_mid 1920x540 (зеркальная стыковка)')
 
+# ── логотип-заголовок (необязательно): assets_raw/title.png → assets/title.png ──
+tsrc = raw_named('title.png')
+if tsrc:
+    tim = chroma_key(Image.open(tsrc)); bb = alpha_bbox(tim)
+    if bb: tim = tim.crop(bb)
+    k = min(1.0, 700 / tim.width, 220 / tim.height); tim = tim.resize((round(tim.width * k), round(tim.height * k)), Image.LANCZOS)
+    tim.save(os.path.join(OUT, 'title.png')); manifest['title'] = {'frames': 1, 'w': tim.width, 'h': tim.height}; print(f'title {tim.width}x{tim.height}')
+elif os.path.exists(os.path.join(OUT, 'title.png')):
+    os.remove(os.path.join(OUT, 'title.png'))
+
 # ── портрет ──
 por = Image.open(raw('eefea498')).convert('RGBA').resize((56, 56), Image.LANCZOS)
 por.save(os.path.join(OUT, 'portrait.png')); manifest['portrait'] = {'frames': 1, 'w': 56, 'h': 56}
@@ -160,11 +173,117 @@ w, h = src.size; m = int(min(w, h) * 0.86); src = src.crop(((w - m) // 2, (h - m
 src.resize((180, 180), Image.LANCZOS).save(os.path.join(ROOT, 'apple-touch-icon.png'))
 src.resize((32, 32), Image.LANCZOS).save(os.path.join(ROOT, 'favicon-32.png'))
 src.resize((192, 192), Image.LANCZOS).save(os.path.join(ROOT, 'icon-192.png'))
+src.resize((512, 512), Image.LANCZOS).save(os.path.join(ROOT, 'icon-512.png'))
+# maskable: безопасная зона — центральные 80%, поэтому лицо уменьшаем и кладём на фон
+mk = Image.new('RGBA', (512, 512), (18, 6, 12, 255)); face = src.resize((410, 410), Image.LANCZOS); mk.paste(face, (51, 51), face)
+mk.save(os.path.join(ROOT, 'icon-512-maskable.png'))
 src.resize((64, 64), Image.LANCZOS).save(os.path.join(ROOT, 'favicon.ico'), sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
 print('favicon.ico, favicon-32.png, apple-touch-icon.png, icon-192.png')
+
+# ── Open Graph превью 1200x630: сцена из игровых слоёв + Хеллка + заголовок ──
+from PIL import ImageDraw, ImageFont
+OW, OH = 1200, 630
+og = Image.new('RGBA', (OW, OH))
+sky = Image.open(os.path.join(OUT, 'bg_sky.png')).convert('RGBA') if os.path.exists(os.path.join(OUT, 'bg_sky.png')) else None
+farL = Image.open(os.path.join(OUT, 'bg_far.png')).convert('RGBA'); midL = Image.open(os.path.join(OUT, 'bg_mid.png')).convert('RGBA')
+sc = OH / 540  # слои 960x540 → высота 630
+def fit(im): return im.resize((round(im.width * sc), OH), Image.LANCZOS)
+if sky: og.alpha_composite(fit(sky), (0, 0)); og.alpha_composite(fit(sky), (round(960 * sc), 0))
+og.alpha_composite(fit(farL), (-260, 0)); og.alpha_composite(fit(midL), (-700, 0))
+og.alpha_composite(Image.new('RGBA', (OW, OH), (15, 0, 8, 70)))
+# лава и платформа
+lava = Image.open(os.path.join(OUT, 'lava.png')).convert('RGBA'); lfw = lava.width // manifest['lava']['frames']; lf = lava.crop((0, 0, lfw, 64)).resize((lfw * 3 // 2, 96), Image.NEAREST)
+for x in range(0, OW, lf.width): og.alpha_composite(lf, (x, OH - 90))
+tile = Image.open(os.path.join(OUT, 'tile.png')).convert('RGBA'); tt = tile.crop((0, 0, 48, 48)).resize((72, 72), Image.NEAREST); tb = tile.crop((48, 0, 96, 48)).resize((72, 72), Image.NEAREST)
+for x in range(0, 620, 72): og.alpha_composite(tt, (x, 450)); og.alpha_composite(tb, (x, 522))
+# предметы — из исходников, чтобы не было мыла
+def nearest_x(im, k): return im.resize((im.width * k, im.height * k), Image.NEAREST)
+cr = rgba('63977877').resize((48, 68), Image.LANCZOS)
+cn = split_by_alpha(rgba('fda5a9cd'))[0]; cn = cn.resize((round(cn.width * 48 / cn.height), 48), Image.LANCZOS)
+for i in range(3): og.alpha_composite(cr, (700 + i * 90, 300 - [0, 40, 0][i]))
+for i in range(4): og.alpha_composite(cn, (860 + i * 60, 420))
+imp = split_by_alpha(rgba('638ce106'))[0]; imp = imp.resize((round(imp.width * 80 / imp.height), 80), Image.LANCZOS)
+og.alpha_composite(imp, (470, 450 - imp.height))
+# Хеллка — кадр прыжка из GIF, увеличен в 4 раза без сглаживания
+hero = nearest_x(gif_frames(raw('side_view_running_cy_running-jump_east'))[3], 4)
+og.alpha_composite(hero, (250, 200))
+# заголовок
+d = ImageDraw.Draw(og)
+def text(s, xy, size, fill, font='impact.ttf', shadow=6, anchor='la'):
+    f = ImageFont.truetype('C:/Windows/Fonts/' + font, size)
+    d.text((xy[0] + shadow, xy[1] + shadow), s, font=f, fill=(0, 0, 0, 230), anchor=anchor)
+    d.text(xy, s, font=f, fill=fill, anchor=anchor)
+# заголовок тем же рукописным шрифтом, что в игре: обводка + вертикальный градиент
+if os.path.exists(os.path.join(OUT, 'title.png')):
+    tl = Image.open(os.path.join(OUT, 'title.png')).convert('RGBA'); k = min(560 / tl.width, 200 / tl.height); tl = tl.resize((round(tl.width * k), round(tl.height * k)), Image.LANCZOS)
+    og.alpha_composite(tl, (60, 40)); title = None
+else: title = 'Хеллка'
+LOB = os.path.join(OUT, 'fonts', 'Lobster-Regular.ttf')
+tf = ImageFont.truetype(LOB, 150); tx, ty = 70, 40
+if title: d.text((tx + 8, ty + 10), title, font=tf, fill=(0, 0, 0, 160))
+if title:
+    d.text((tx, ty), title, font=tf, fill=(26, 4, 8, 255), stroke_width=12, stroke_fill=(26, 4, 8, 255))
+    bb = d.textbbox((tx, ty), title, font=tf)
+    mask = Image.new('L', og.size, 0); ImageDraw.Draw(mask).text((tx, ty), title, font=tf, fill=255)
+    grad = Image.new('RGBA', og.size); gd = ImageDraw.Draw(grad)
+    for y in range(bb[1], bb[3] + 1):
+        k = (y - bb[1]) / max(1, bb[3] - bb[1])
+        c = (255, 214, 110) if k < 0.42 else (255, 90, 64)
+        c2 = (255, 90, 64) if k < 0.42 else (168, 15, 30)
+        kk = k / 0.42 if k < 0.42 else (k - 0.42) / 0.58
+        gd.line([(bb[0], y), (bb[2], y)], fill=tuple(int(c[i] + (c2[i] - c[i]) * kk) for i in range(3)) + (255,))
+    og.paste(grad, (0, 0), mask)
+text('viyy.github.io/Hellka_game', (OW - 40, OH - 24), 26, (255, 230, 128), 'consolab.ttf', 3, 'rd')
+og.convert('RGB').save(os.path.join(ROOT, 'og.png'), optimize=True)
+print('og.png 1200x630')
+
+# ── иконки достижений: assets_raw/ach/<id>.png → assets/ach/<id>.png 64x64 ──
+ACH_IDS = ['first_run', 'score_500', 'score_1000', 'score_2500', 'crystals_50', 'coins_50', 'stomp_10', 'speed_2', 'speed_max', 'survive_60', 'no_hit_500', 'deaths_10',
+           'ghost', 'pacifist', 'perfectionist', 'phoenix', 'daredevil', 'marathon', 'midnight', 'hidden']
+ach_raw = next((os.path.join(RAW, d) for d in ('ach', 'achiv', 'achievements') if os.path.isdir(os.path.join(RAW, d))), os.path.join(RAW, 'ach')); ach_out = os.path.join(OUT, 'ach'); os.makedirs(ach_out, exist_ok=True); n_ach = 0
+for aid in ACH_IDS:
+    src_p = os.path.join(ach_raw, aid + '.png')
+    if not os.path.exists(src_p): continue
+    im = Image.open(src_p).convert('RGBA'); bb = alpha_bbox(im)
+    if bb: im = im.crop(bb)
+    m = max(im.size); sq = Image.new('RGBA', (m, m), (0, 0, 0, 0)); sq.paste(im, ((m - im.width) // 2, (m - im.height) // 2), im)
+    sq.resize((64, 64), Image.LANCZOS).save(os.path.join(ach_out, aid + '.png')); n_ach += 1
+print(f'иконки достижений: {n_ach}/{len(ACH_IDS)} (остальные — заглушки в игре)')
 
 json.dump(manifest, open(os.path.join(OUT, 'manifest.json'), 'w'), indent=1)
 # manifest.js подключается тегом <script> и работает даже при открытии index.html через file://
 with open(os.path.join(OUT, 'manifest.js'), 'w') as f:
     f.write('window.ASSET_MANIFEST = ' + json.dumps(manifest) + ';\n')
 print('manifest.json / manifest.js записаны')
+
+# ── PWA: service worker со списком всех файлов и версией-хэшем ──
+import hashlib
+files = ['./', 'index.html', 'game.js', 'manifest.webmanifest', 'favicon.ico', 'favicon-32.png', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'apple-touch-icon.png']
+for dp, _, fns in os.walk(OUT):
+    for fn in sorted(fns):
+        if fn.lower().endswith(('.png', '.wav', '.ogg', '.mp3', '.js', '.json', '.ttf')):
+            files.append(os.path.relpath(os.path.join(dp, fn), ROOT).replace(os.sep, '/'))
+h = hashlib.sha1()
+for f in files:
+    fp = os.path.join(ROOT, 'index.html' if f == './' else f)
+    if os.path.exists(fp): h.update(open(fp, 'rb').read())
+ver = h.hexdigest()[:10]
+sw = """// Сгенерировано tools/build_assets.py — не править руками
+const CACHE = 'hellka-%s';
+const FILES = %s;
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
+  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(r => r || fetch(e.request).then(res => {
+    if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+    return res;
+  })).catch(() => caches.match('./')));
+});
+""" % (ver, json.dumps(files, ensure_ascii=False, indent=0))
+open(os.path.join(ROOT, 'sw.js'), 'w', encoding='utf-8').write(sw)
+print(f'sw.js: {len(files)} файлов, версия {ver}')

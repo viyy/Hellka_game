@@ -123,6 +123,117 @@ Pixel art seamless horizontally tileable parallax foreground layer, 1920x1080, t
 Pixel art square avatar icon, close-up of chibi anime devil girl "Hellka": long bright red hair, small red horns, big blue eyes, slight smirk, dark stone frame border around the icon. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette, dark fantasy hell theme with crimson / black / orange accents, game HUD icon.
 ```
 
+## Иконки достижений
+
+Клади PNG в `assets_raw/ach/` с именами из таблицы, потом `python tools/build_assets.py`: скрипт обрежет по прозрачности, выровняет в квадрат и уменьшит до 64×64 в `assets/ach/`. Пока файла нет, игра рисует заглушку с первой буквой названия.
+
+Общий стиль для всех иконок (уже включён в каждый промпт): квадратный значок, один крупный объект по центру, тёмно-каменная рамка, багровая с золотом палитра, прозрачный фон.
+
+| Файл | Достижение | Условие |
+|---|---|---|
+| `first_run.png` | Первый забег | завершить первый забег |
+| `score_500.png` | Пятьсот | 500 очков за забег |
+| `score_1000.png` | Тысяча | 1000 очков за забег |
+| `score_2500.png` | Легенда ада | 2500 очков за забег |
+| `crystals_50.png` | Коллекционер | 50 кристаллов за забег |
+| `coins_50.png` | Сорока | 50 монет за забег |
+| `stomp_10.png` | Бесогон | 10 бесов за забег |
+| `speed_2.png` | Разгон | скорость 2.0x |
+| `speed_max.png` | Предел | скорость 2.8x |
+| `survive_60.png` | Минута в аду | 60 секунд |
+| `no_hit_500.png` | Без царапины | 500 очков без урона |
+| `deaths_10.png` | Упорство | 10 смертей суммарно |
+| `hidden.png` | ??? | заглушка для ещё не открытых скрытых достижений |
+| `ghost.png` | Призрак (скрытое) | 2000 очков без урона |
+| `pacifist.png` | Пацифистка (скрытое) | 90 секунд, не тронув ни беса |
+| `perfectionist.png` | Перфекционистка (скрытое) | минута без единого пропущенного кристалла |
+| `phoenix.png` | Феникс (скрытое) | 1000 очков на последнем сердце |
+| `daredevil.png` | Сорвиголова (скрытое) | 25 кристаллов над пропастью за забег |
+| `marathon.png` | Марафон (скрытое) | 3 минуты в одном забеге |
+| `midnight.png` | Полуночница (скрытое) | забег от 30 с между полуночью и 4 утра |
+
+### first_run.png
+```
+Pixel art achievement badge icon, square, single centered object: a small red devil-girl boot taking a first step, motion dust puff behind it. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### score_500.png
+```
+Pixel art achievement badge icon, square, single centered object: a bronze medal with a five-pointed star. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### score_1000.png
+```
+Pixel art achievement badge icon, square, single centered object: a silver medal with a small red devil horns emblem. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### score_2500.png
+```
+Pixel art achievement badge icon, square, single centered object: a golden crown with red gems and small devil horns, glowing. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### crystals_50.png
+```
+Pixel art achievement badge icon, square, single centered object: a pile of three glowing red ruby crystals. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### coins_50.png
+```
+Pixel art achievement badge icon, square, single centered object: a small black magpie bird holding a shiny gold coin in its beak. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### stomp_10.png
+```
+Pixel art achievement badge icon, square, single centered object: a black boot stomping a squashed round red imp with bat wings, tiny stars around it. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### speed_2.png
+```
+Pixel art achievement badge icon, square, single centered object: a red arrow-tipped devil tail shaped like a speed streak with motion lines. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### speed_max.png
+```
+Pixel art achievement badge icon, square, single centered object: a fiery comet with a long orange flame trail, blazing. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### survive_60.png
+```
+Pixel art achievement badge icon, square, single centered object: a gothic hourglass filled with glowing red sand. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### no_hit_500.png
+```
+Pixel art achievement badge icon, square, single centered object: a red heart inside a shining golden shield, intact and unbroken. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### deaths_10.png
+```
+Pixel art achievement badge icon, square, single centered object: a small cute skull with tiny red devil horns and a cheeky grin. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+
+### hidden.png
+```
+Pixel art achievement badge icon, square, single centered object: a large glowing question mark carved into dark stone, faint red smoke around it. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### ghost.png
+```
+Pixel art achievement badge icon, square, single centered object: a translucent pale ghost of a cute devil girl with tiny horns, semi-transparent, floating. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### pacifist.png
+```
+Pixel art achievement badge icon, square, single centered object: a small round red imp with bat wings holding a white dove feather, peaceful, surrounded by a soft golden halo. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### perfectionist.png
+```
+Pixel art achievement badge icon, square, single centered object: a perfect row of five identical glowing red crystals with a golden checkmark above them. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### phoenix.png
+```
+Pixel art achievement badge icon, square, single centered object: a burning phoenix bird rising from a single red heart, flames in orange and gold. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### daredevil.png
+```
+Pixel art achievement badge icon, square, single centered object: a glowing red crystal floating above a lava chasm between two rock ledges, tiny sparks. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### marathon.png
+```
+Pixel art achievement badge icon, square, single centered object: a winged black boot with a golden laurel wreath around it, motion lines behind. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### midnight.png
+```
+Pixel art achievement badge icon, square, single centered object: a crescent blood-red moon with a tiny devil-horned silhouette sitting on it, a few stars. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+
 ## Советы
 - Генерируй кадры спрайт-листа за один запрос (иначе персонаж «поплывёт»), либо генерируй один кадр и дорисовывай остальные вручную в Aseprite/Piskel.
 - Если генератор не умеет прозрачный фон — генерируй на ярко-зелёном и вырезай.

@@ -26,6 +26,7 @@ const MANIFEST = {
   bg_far:      { frames: 1, w: 960, h: 540 }, // замок с прозрачным небом (parallax дальний)
   bg_mid:      { frames: 1, w: 960, h: 540 }, // скалы (parallax ближний, с прозрачностью)
   portrait:    { frames: 1, w: 56, h: 56 },
+  title:       { frames: 1, w: 560, h: 150 }, // сгенерированный логотип (необязательно)
 };
 const IMG = {};
 
@@ -317,9 +318,11 @@ function fallback(key) {
     case 'bg_far':      return makeBgFar();
     case 'bg_mid':      return makeBgMid();
     case 'portrait':    return makePortrait();
+    case 'title':       return null; // нет файла — заголовок рисуется процедурно (drawTitle)
   }
 }
 async function loadAssets() {
+  try { await document.fonts.load('80px Lobster'); } catch (e) {}
   // assets/manifest.json (пишет tools/build_assets.py) задаёт число кадров для реальных PNG
   // manifest.js подключён в index.html (работает и через file://); json — запасной вариант
   let ext = window.ASSET_MANIFEST || {};
@@ -455,6 +458,8 @@ addEventListener('keydown', e => {
   if (['ArrowLeft','ArrowRight','ArrowUp','Space','KeyA','KeyD','KeyW'].includes(e.code)) e.preventDefault();
   if (!keys[e.code] && (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW')) jumpPressed = true;
   keys[e.code] = true;
+  if (state === 'ach' && ['Escape', 'Enter', 'Space', 'KeyA', 'KeyP'].includes(e.code)) { closeAch(); return; }
+  if ((state === 'menu' || state === 'pause') && e.code === 'KeyA') { openAch(state); return; }
   if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
   if (e.code === 'KeyM') MUSIC.toggleMute();
   if (e.code === 'Enter' && (state === 'menu' || state === 'over')) startGame();
@@ -476,7 +481,7 @@ bindBtn('br', () => tb.right = true, () => tb.right = false);
 bindBtn('bj', () => { jumpPressed = true; keys.__tj = true; }, () => keys.__tj = false);
 // ползунки громкости: рисуются в меню и в паузе, тянутся мышью/пальцем
 const SLIDERS = [{ key: 'music', label: 'Музыка' }, { key: 'sfx', label: 'Эффекты' }];
-const SL = { x: W / 2 - 60, w: 260, h: 12, gap: 40 };
+const SL = { x: W / 2 - 103, w: 260, h: 12, gap: 40 }; // трек смещён так, чтобы подпись+трек+проценты были по центру
 let sliderY = 0, dragSlider = -1;
 function sliderAt(p) {
   if (!(state === 'menu' || state === 'pause')) return -1;
@@ -506,6 +511,9 @@ cv.addEventListener('pointerdown', e => {
   const p = toGame(e);
   const si = sliderAt(p);
   if (si >= 0) { dragSlider = si; sliderSet(si, p); cv.setPointerCapture(e.pointerId); if (SLIDERS[si].key === 'sfx') SFX.coin(); return; }
+  if (state === 'ach') { closeAch(); return; }
+  if (state === 'menu' && inBtn(p, ACH_BTN)) { openAch('menu'); return; }
+  if (state === 'pause' && inBtn(p, ACH_BTN_PAUSE)) { openAch('pause'); return; }
   if (state === 'menu' || state === 'over') { startGame(); return; }
   if (p.x > W - 70 && p.y < 70) { togglePause(); return; }
   if (state === 'pause') { togglePause(); return; }
@@ -527,15 +535,114 @@ addEventListener('resize', resize); resize();
 
 // ───────────────────────── ИГРА ─────────────────────────
 const GRAVITY = 1900, JUMP_V = 730, MOVE = 190;
+// отзывчивость прыжка: койот-тайм (сек после схода с края, когда прыжок ещё «с земли») и буфер нажатия
+// (сек до приземления, в течение которых нажатие запоминается). Откат: поставить 0 и 0.
+const COYOTE = 0.10, JUMP_BUFFER = 0.12;
 const LAVA_Y = 500;               // верх лавы
 const LEVELS = [432, 336, 240];   // высоты платформ (верх)
-let state = 'menu';               // menu | play | pause | over
+let state = 'menu';               // menu | play | pause | over | ach
 let best = +localStorage.getItem('hellka_best') || 0;
 let G;                            // текущая сессия
 
+// ───────────────────────── ДОСТИЖЕНИЯ ─────────────────────────
+// run — статистика текущего забега (G), tot — суммарная по всем забегам, end — забег завершён
+const ACH = [
+  { id: 'first_run',    t: 'Первый забег',   d: 'Завершить первый забег',              f: (r, tot, end) => end },
+  { id: 'score_500',    t: 'Пятьсот',        d: '500 очков за один забег',             f: r => r.score >= 500 },
+  { id: 'score_1000',   t: 'Тысяча',         d: '1000 очков за один забег',            f: r => r.score >= 1000 },
+  { id: 'score_2500',   t: 'Легенда ада',    d: '2500 очков за один забег',            f: r => r.score >= 2500 },
+  { id: 'crystals_50',  t: 'Коллекционер',   d: '50 кристаллов за один забег',         f: r => r.crystals >= 50 },
+  { id: 'coins_50',     t: 'Сорока',         d: '50 монет за один забег',              f: r => r.coins >= 50 },
+  { id: 'stomp_10',     t: 'Бесогон',        d: 'Растоптать 10 бесов за забег',   f: r => r.stomps >= 10 },
+  { id: 'speed_2',      t: 'Разгон',         d: 'Разогнаться до 2.0x',                 f: r => r.speed >= 400 },
+  { id: 'speed_max',    t: 'Предел',         d: 'Максимальная скорость 2.8x',  f: r => r.speed >= 559 },
+  { id: 'survive_60',   t: 'Минута в аду',   d: 'Продержаться 60 секунд',              f: r => r.t >= 60 },
+  { id: 'no_hit_500',   t: 'Без царапины',   d: '500 очков, не получив урона',         f: r => r.score >= 500 && r.hits === 0 },
+  { id: 'deaths_10',    t: 'Упорство',       d: 'Погибнуть 10 раз и вернуться',      f: (r, tot) => tot.deaths >= 10 },
+  // скрытые: условия и иконки не показываются, пока не открыты
+  { id: 'ghost',        t: 'Призрак',        d: '2000 очков без единого урона',      hidden: true, f: r => r.score >= 2000 && r.hits === 0 },
+  { id: 'pacifist',     t: 'Пацифистка',     d: '90 секунд, не тронув ни беса',      hidden: true, f: r => r.t >= 90 && r.stomps === 0 },
+  { id: 'perfectionist',t: 'Перфекционистка',d: 'Минута без пропущенных кристаллов', hidden: true, f: r => r.t >= 60 && r.missedCrystals === 0 },
+  { id: 'phoenix',      t: 'Феникс',         d: '1000 очков на последнем сердце',    hidden: true, f: r => r.p.hp === 1 && r.hp1Score >= 0 && r.score - r.hp1Score >= 1000 },
+  { id: 'daredevil',    t: 'Сорвиголова',    d: '25 кристаллов над пропастью',       hidden: true, f: r => r.gapCrystals >= 25 },
+  { id: 'marathon',     t: 'Марафон',        d: '3 минуты в одном забеге',           hidden: true, f: r => r.t >= 180 },
+  { id: 'midnight',     t: 'Полуночница',    d: 'Забег между полуночью и 4 утра',    hidden: true, f: (r, tot, end) => end && r.t >= 30 && new Date().getHours() < 4 },
+];
+const HIDDEN = { id: 'hidden', t: '???', d: 'Скрытое достижение' }; // заглушка для закрытых скрытых
+const ACH_IMG = {};
+for (const a of [...ACH, HIDDEN]) { const im = new Image(); im.onload = () => { ACH_IMG[a.id] = im; }; im.src = `assets/ach/${a.id}.png`; }
+function loadJSON(k, def) { try { return Object.assign(def, JSON.parse(localStorage.getItem(k) || '{}')); } catch (e) { return def; } }
+const unlocked = loadJSON('hellka_ach', {});                       // id → дата
+const STATS = loadJSON('hellka_stats', { runs: 0, deaths: 0, crystals: 0, coins: 0, stomps: 0, dist: 0 });
+const toasts = [];                                                  // всплывашки: {a, t}
+let newAch = 0;                                                     // открыто за текущий забег
+function checkAch(end) {
+  if (!G) return;
+  for (const a of ACH) {
+    if (unlocked[a.id]) continue;
+    let ok = false; try { ok = a.f(G, STATS, end); } catch (e) {}
+    if (!ok) continue;
+    unlocked[a.id] = Date.now(); newAch++;
+    localStorage.setItem('hellka_ach', JSON.stringify(unlocked));
+    toasts.push({ a, t: 0 }); SFX.crystal();
+  }
+}
+function saveStats() { localStorage.setItem('hellka_stats', JSON.stringify(STATS)); }
+function drawAchIcon(a, x, y, size, dim) {
+  const im = ACH_IMG[a.id];
+  ctx.save(); if (dim) ctx.globalAlpha = 0.35;
+  if (im) ctx.drawImage(im, x, y, size, size);
+  else { // заглушка: тёмная плашка с первой буквой
+    ctx.fillStyle = '#3a1520'; ctx.fillRect(x, y, size, size); ctx.strokeStyle = '#8b6a6e'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+    ctx.fillStyle = '#ff6a6a'; ctx.font = `bold ${size * 0.55 | 0}px monospace`; ctx.textAlign = 'center'; ctx.fillText(a.id === 'hidden' ? '?' : a.t[0], x + size / 2, y + size * 0.7);
+  }
+  ctx.restore();
+}
+function drawToasts(dt) {
+  for (const tt of toasts) tt.t += dt;
+  while (toasts.length && toasts[0].t > 3.2) toasts.shift();
+  const tt = toasts[0]; if (!tt) return;
+  const k = Math.min(1, tt.t * 4, (3.2 - tt.t) * 3); // въезд/выезд
+  const base = isTouch ? H - 150 : H - 72; // на тач-экранах выше кнопки прыжка
+  const y = base + (1 - k) * 90, x = W - 400;
+  panel(x, y, 380, 58); drawAchIcon(tt.a, x + 8, y + 8, 42);
+  ctx.textAlign = 'left'; ctx.font = '13px monospace'; ctx.fillStyle = '#ffb0a8'; ctx.fillText('ДОСТИЖЕНИЕ', x + 62, y + 22);
+  ctx.font = 'bold 20px monospace'; ctx.fillStyle = '#ffe680'; ctx.fillText(tt.a.t, x + 62, y + 46);
+}
+function drawAchScreen() {
+  ctx.fillStyle = 'rgba(8,0,4,0.82)'; ctx.fillRect(0, 0, W, H);
+  const n = Object.keys(unlocked).filter(id => ACH.some(a => a.id === id)).length;
+  panel(30, 22, W - 60, H - 44);
+  centerText(`ДОСТИЖЕНИЯ  ${n} / ${ACH.length}`, 62, 28, '#ff4a4a');
+  const cols = 3, colW = (W - 100) / cols, rowH = 57;
+  ACH.forEach((a, i) => {
+    // неполный последний ряд центрируем (одна ячейка — в среднюю колонку)
+    const row = Math.floor(i / cols), inRow = Math.min(cols, ACH.length - row * cols), shift = (cols - inRow) * colW / 2;
+    const x = 50 + shift + (i % cols) * colW, y = 80 + row * rowH, got = !!unlocked[a.id];
+    const show = got || !a.hidden ? a : HIDDEN; // скрытое и не открытое — маскируем
+    drawAchIcon(show, x, y, 42, !got);
+    ctx.textAlign = 'left'; ctx.font = 'bold 15px monospace'; ctx.fillStyle = got ? '#ffe680' : (a.hidden ? '#6a5a60' : '#8a7a80'); ctx.fillText(show.t, x + 52, y + 16);
+    ctx.font = '12px monospace'; ctx.fillStyle = got ? '#f0d0d0' : '#6a5a60'; ctx.fillText(show.d, x + 52, y + 33);
+    if (got) { ctx.fillStyle = '#c0a0a8'; ctx.font = '11px monospace'; ctx.fillText(new Date(unlocked[a.id]).toLocaleDateString('ru-RU'), x + 52, y + 48); }
+  });
+  centerText('ESC / тап — назад', H - 29, 14, '#ddd', false);
+}
+const ACH_BTN = { x: 20, y: H - 58, w: 250, h: 40 };            // в меню
+const ACH_BTN_PAUSE = { x: W / 2 - 125, y: 328, w: 250, h: 38 };  // в паузе
+let achFrom = 'menu';                                             // куда возвращаться с экрана достижений
+function openAch(from) { achFrom = from; state = 'ach'; SFX.confirm(); }
+function closeAch() { state = achFrom; jumpPressed = false; }
+function drawAchButton(b) {
+  const n = Object.keys(unlocked).filter(id => ACH.some(a => a.id === id)).length;
+  panel(b.x, b.y, b.w, b.h);
+  ctx.textAlign = 'center'; ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#ffe680';
+  ctx.fillText(`★ Достижения  ${n}/${ACH.length}`, b.x + b.w / 2, b.y + 27);
+}
+function inBtn(p, b) { return p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h; }
+
 function startGame() {
   G = {
-    t: 0, camX: 0, speed: 200, score: 0, crystals: 0, coins: 0, dist: 0,
+    t: 0, camX: 0, speed: 200, score: 0, crystals: 0, coins: 0, dist: 0, stomps: 0, hits: 0, achT: 0, missedCrystals: 0, gapCrystals: 0, hp1Score: -1,
     plats: [], items: [], enemies: [], parts: [], texts: [],
     genX: 0, lastY: LEVELS[0], rnd: mulberry(Date.now() & 0xffff),
     p: { x: 120, y: 300, w: 30, h: 66, vx: 0, vy: 0, ground: false, jumps: 0, hp: 5, inv: 0, anim: 0, face: 1, dead: false, deadT: 0 },
@@ -543,7 +650,7 @@ function startGame() {
   };
   // стартовая площадка
   addPlat(-200, LEVELS[0], 900); G.genX = 700; G.lastY = LEVELS[0];
-  state = 'play'; MUSIC.start(); SFX.confirm();
+  state = 'play'; MUSIC.start(); SFX.confirm(); newAch = 0;
 }
 function togglePause() {
   if (state === 'play') { state = 'pause'; MUSIC.pause(); }
@@ -583,7 +690,7 @@ function generate() {
       const n = 4 + (r() * 5 | 0), cx = x + 30 + r() * Math.max(10, len - 60 - n * 30);
       for (let i = 0; i < n; i++) G.items.push({ t: 'coin', x: cx + i * 30, y: y - 50 - (r() < 0.3 ? 70 : 0), w: 24, h: 24, ph: i * 0.6 });
     } else { // кристаллы над пропастью (риск/награда)
-      for (let i = 0; i < 3; i++) G.items.push({ t: 'crystal', x: G.genX + gap * 0.5 - 40 + i * 34, y: y - 130 - i * 4, w: 24, h: 34, ph: i });
+      for (let i = 0; i < 3; i++) G.items.push({ t: 'crystal', gap: true, x: G.genX + gap * 0.5 - 40 + i * 34, y: y - 130 - i * 4, w: 24, h: 34, ph: i });
     }
     // бесы
     if (len >= 32 * 7 && r() < 0.3 + Math.min(0.5, G.t / 120)) {
@@ -598,6 +705,7 @@ function generate() {
   // чистка позади камеры
   const lim = G.camX - 300;
   G.plats = G.plats.filter(p => p.x + p.w > lim);
+  for (const i of G.items) if (i.t === 'crystal' && !i.got && i.x + i.w <= lim) G.missedCrystals++;
   G.items = G.items.filter(i => i.x + i.w > lim && !i.got);
   G.enemies = G.enemies.filter(e => e.x + e.w > lim && !(e.dead && e.deadT > 0.6));
 }
@@ -608,7 +716,8 @@ function burst(x, y, col, n = 10, spd = 200) {
 }
 function hurt(p, kx) {
   if (p.inv > 0 || p.dead) return;
-  p.hp--; p.inv = 1.6; p.vy = -420; p.vx = kx; G.shake = 0.35; G.hudFlash = 0.4;
+  p.hp--; p.inv = 1.6; p.vy = -420; p.vx = kx; G.shake = 0.35; G.hudFlash = 0.4; G.hits++;
+  if (p.hp === 1) G.hp1Score = G.score; // для «Феникса»: очки с момента последнего сердца
   SFX.hurt(); burst(p.x + p.w / 2, p.y + p.h / 2, '#ff4040', 12);
   if (p.hp <= 0) die();
 }
@@ -616,6 +725,8 @@ function die() {
   const p = G.p; if (p.dead) return;
   p.dead = true; p.deadT = 0; p.vy = -500; SFX.dead(); G.shake = 0.6; MUSIC.stop();
   if (G.score > best) { best = Math.floor(G.score); localStorage.setItem('hellka_best', best); }
+  STATS.runs++; STATS.deaths++; STATS.crystals += G.crystals; STATS.coins += G.coins; STATS.stomps += G.stomps; STATS.dist += Math.floor(G.dist / 10);
+  saveStats(); checkAch(true);
 }
 
 function update(dt) {
@@ -627,6 +738,7 @@ function update(dt) {
   g.dist += g.speed * dt;
   g.score += g.speed * dt * 0.02; // очки за дистанцию
   if (g.shake > 0) g.shake -= dt;
+  if (!p.dead) { g.achT += dt; if (g.achT >= 0.25) { g.achT = 0; checkAch(false); } }
   MUSIC.update(Math.max(0, Math.min(1, (g.speed / 200 - 1.5) / 0.6)), dt);
   if (g.hudFlash > 0) g.hudFlash -= dt;
 
@@ -642,9 +754,14 @@ function update(dt) {
     const home = 150, drift = dir ? 0 : Math.max(-80, Math.min(120, (home - (p.x - g.camX)) * 1.5));
     if (p.inv < 1.3) p.vx = g.speed + dir * MOVE + drift; // при ударе краткий откат
     if (dir) p.face = dir;
-    if (jumpPressed && (p.ground || p.jumps < 2)) {
-      const first = p.ground;
-      p.vy = first ? -JUMP_V : -JUMP_V * 0.9; p.jumps = first ? 1 : 2; p.ground = false;
+    // койот-тайм: сколько ещё можно считать, что стоим на земле
+    p.coyote = p.ground ? COYOTE : Math.max(0, (p.coyote || 0) - dt);
+    // буфер: нажатие запоминается и срабатывает при первой возможности
+    if (jumpPressed) p.jbuf = JUMP_BUFFER; else p.jbuf = Math.max(0, (p.jbuf || 0) - dt);
+    const onGround = p.ground || (p.coyote > 0 && p.jumps === 0);
+    if (p.jbuf > 0 && (onGround || p.jumps < 2)) {
+      const first = onGround;
+      p.vy = first ? -JUMP_V : -JUMP_V * 0.9; p.jumps = first ? 1 : 2; p.ground = false; p.coyote = 0; p.jbuf = 0;
       first ? SFX.jump() : SFX.djump();
       burst(p.x + p.w / 2, p.y + p.h, '#ffb03a', 5, 120);
     }
@@ -691,7 +808,7 @@ function update(dt) {
     if (e.x + e.w > e.px + e.pw) { e.x = e.px + e.pw - e.w; e.vx = -Math.abs(e.vx); }
     if (!p.dead && p.x + p.w - 6 > e.x && p.x + 6 < e.x + e.w && p.y + p.h > e.y && p.y < e.y + e.h) {
       if (p.vy > 0 && p.y + p.h - p.vy * dt <= e.y + 12) {
-        e.dead = true; p.vy = -JUMP_V * 0.7; p.jumps = 1; g.score += 25; SFX.stomp();
+        e.dead = true; p.vy = -JUMP_V * 0.7; p.jumps = 1; g.score += 25; g.stomps++; SFX.stomp();
         burst(e.x + e.w / 2, e.y + e.h / 2, '#d8322a', 14); addText(e.x, e.y - 10, '+25', '#ffb0a8');
       } else hurt(p, g.speed - 280);
     }
@@ -702,7 +819,7 @@ function update(dt) {
     it.ph += dt * 3;
     if (!p.dead && p.x + p.w > it.x && p.x < it.x + it.w && p.y + p.h > it.y && p.y < it.y + it.h) {
       it.got = true;
-      if (it.t === 'crystal') { g.crystals++; g.score += 10; SFX.crystal(); burst(it.x + 12, it.y + 17, '#ff5a5a', 8, 140); addText(it.x, it.y - 10, '+10', '#ff8a8a'); }
+      if (it.t === 'crystal') { g.crystals++; g.score += 10; if (it.gap) g.gapCrystals++; SFX.crystal(); burst(it.x + 12, it.y + 17, '#ff5a5a', 8, 140); addText(it.x, it.y - 10, '+10', '#ff8a8a'); }
       else { g.coins++; g.score += 5; SFX.coin(); burst(it.x + 12, it.y + 12, '#ffd23a', 6, 120); addText(it.x, it.y - 10, '+5', '#ffe680'); }
     }
   }
@@ -725,15 +842,16 @@ function drawBg(camX, t) {
   // притемняем фон, чтобы предметы и враги читались на насыщенной картинке
   ctx.fillStyle = 'rgba(15,0,8,0.28)'; ctx.fillRect(0, 0, W, H);
   // свечение лавы снизу
-  const gr = ctx.createLinearGradient(0, LAVA_Y - 160, 0, LAVA_Y);
-  gr.addColorStop(0, 'rgba(255,90,20,0)'); gr.addColorStop(1, 'rgba(255,90,20,0.35)');
-  ctx.fillStyle = gr; ctx.fillRect(0, LAVA_Y - 160, W, 160);
+  const gr = ctx.createLinearGradient(0, LAVA_Y - 160, 0, LAVA_Y + 8);
+  gr.addColorStop(0, 'rgba(255,90,20,0)'); gr.addColorStop(0.88, 'rgba(255,90,20,0.35)'); gr.addColorStop(1, 'rgba(255,140,40,0.95)');
+  ctx.fillStyle = gr; ctx.fillRect(0, LAVA_Y - 160, W, 168);
 }
 function drawLava(camX, t) {
-  const f = (t * 3 | 0) % 2, off = -(camX * 0.9) % 64;
+  const lw = MANIFEST.lava.w, lh = MANIFEST.lava.h; // кадр может быть зеркальной парой (бесшовный повтор)
+  const f = (t * 3 | 0) % 2, off = -(camX * 0.9) % lw;
   const bob = Math.sin(t * 4) * 3;
-  for (let x = off - 64; x < W + 64; x += 64) spr('lava', f, x, LAVA_Y + bob, false, 64, 64);
-  ctx.fillStyle = '#c8300a'; ctx.fillRect(0, LAVA_Y + 64 + bob, W, H);
+  for (let x = off - lw; x < W + lw; x += lw) spr('lava', f, x, LAVA_Y + bob, false, lw, lh);
+  ctx.fillStyle = '#c8300a'; ctx.fillRect(0, LAVA_Y + lh + bob - 1, W, H);
 }
 function drawWorld() {
   const g = G, cx = g.camX;
@@ -803,6 +921,48 @@ function drawHud() {
   else { ctx.fillRect(W - 54, 28, 8, 26); ctx.fillRect(W - 38, 28, 8, 26); }
   if (g.hudFlash > 0) { ctx.fillStyle = `rgba(255,0,0,${g.hudFlash * 0.5})`; ctx.fillRect(0, 0, W, H); }
 }
+// Стилизованный заголовок: рукописный шрифт, градиент, обводка, рожки и хвостик, лёгкое покачивание
+function drawTitle(cx, cy, size, t) {
+  const text = 'Хеллка';
+  ctx.save();
+  if (IMG.title) { // готовый логотип: вписываем по высоте, тот же лёгкий «дыхательный» наклон
+    const im = IMG.title, h = size * 1.45, w = h * im.width / im.height;
+    ctx.translate(cx, cy - size * 0.4 + Math.sin(t * 2.2) * size * 0.03); ctx.rotate(Math.sin(t * 1.4) * 0.03);
+    ctx.drawImage(im, -w / 2, -h / 2, w, h); ctx.restore(); return;
+  }
+  ctx.font = `${size}px Lobster, cursive`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  const w = ctx.measureText(text).width;
+  ctx.translate(cx, cy + Math.sin(t * 2.2) * size * 0.03); ctx.rotate(Math.sin(t * 1.4) * 0.035 - 0.03);
+  ctx.lineJoin = 'round';
+  // тень
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(text, size * 0.06, size * 0.07);
+  // обводка
+  ctx.lineWidth = size * 0.17; ctx.strokeStyle = '#1a0408'; ctx.strokeText(text, 0, 0);
+  // заливка градиентом
+  const grd = ctx.createLinearGradient(0, -size * 0.75, 0, size * 0.12);
+  grd.addColorStop(0, '#ffd66e'); grd.addColorStop(0.42, '#ff5a40'); grd.addColorStop(1, '#a80f1e');
+  ctx.fillStyle = grd; ctx.fillText(text, 0, 0);
+  // блик
+  ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.save(); ctx.beginPath(); ctx.rect(-w, -size, 2 * w, size * 0.45); ctx.clip(); ctx.fillText(text, 0, 0); ctx.restore();
+  // рожки над «Х»
+  const hx = -w / 2 + size * 0.34, hy = -size * 0.62;
+  for (const [dx, dir] of [[-size * 0.12, -1], [size * 0.12, 1]]) {
+    ctx.beginPath(); ctx.moveTo(hx + dx - size * 0.07, hy); ctx.quadraticCurveTo(hx + dx + dir * size * 0.08, hy - size * 0.12, hx + dx + dir * size * 0.02, hy - size * 0.24);
+    ctx.quadraticCurveTo(hx + dx + dir * size * 0.02, hy - size * 0.1, hx + dx + size * 0.07, hy); ctx.closePath();
+    ctx.lineWidth = size * 0.07; ctx.strokeStyle = '#1a0408'; ctx.stroke(); ctx.fillStyle = '#e8352a'; ctx.fill();
+  }
+  // хвостик со стрелкой после «а»
+  const tx = w / 2 + size * 0.02, ty = -size * 0.12, s2 = size;
+  ctx.beginPath(); ctx.moveTo(tx, ty);
+  ctx.bezierCurveTo(tx + s2 * 0.22, ty + s2 * 0.05, tx + s2 * 0.3, ty + s2 * 0.35, tx + s2 * 0.12, ty + s2 * 0.34);
+  ctx.bezierCurveTo(tx + s2 * 0.0, ty + s2 * 0.33, tx + s2 * 0.02, ty + s2 * 0.2, tx + s2 * 0.14, ty + s2 * 0.2);
+  ctx.lineCap = 'round'; ctx.lineWidth = s2 * 0.11; ctx.strokeStyle = '#1a0408'; ctx.stroke();
+  ctx.lineWidth = s2 * 0.05; ctx.strokeStyle = '#e8352a'; ctx.stroke();
+  const ax = tx + s2 * 0.14, ay = ty + s2 * 0.2; // наконечник
+  ctx.beginPath(); ctx.moveTo(ax + s2 * 0.11, ay - s2 * 0.02); ctx.lineTo(ax - s2 * 0.03, ay - s2 * 0.1); ctx.lineTo(ax - s2 * 0.01, ay + s2 * 0.09); ctx.closePath();
+  ctx.lineWidth = s2 * 0.05; ctx.strokeStyle = '#1a0408'; ctx.stroke(); ctx.fillStyle = '#e8352a'; ctx.fill();
+  ctx.restore();
+}
 function centerText(s, y, size, col, bold = true) {
   ctx.font = `${bold ? 'bold ' : ''}${size}px monospace`; ctx.textAlign = 'center';
   ctx.fillStyle = '#000'; ctx.fillText(s, W / 2 + 3, y + 3);
@@ -811,14 +971,15 @@ function centerText(s, y, size, col, bold = true) {
 function drawMenu(t) {
   drawBg(t * 60, t); drawLava(t * 60, t);
   spr('player_run', t * 10, W / 2 - MANIFEST.player_run.w / 2, 322 - MANIFEST.player_run.h);
-  panel(W / 2 - 300, 60, 600, 158);
-  centerText('ХЕЛЛКА', 126, 64, '#ff4a4a');
-  centerText('бесконечный платформер', 168, 22, '#f0c0c0', false);
+  panel(W / 2 - 300, 52, 600, 176);
+  drawTitle(W / 2, 148, 96, t);
+  centerText('бесконечный платформер', 192, 20, '#f0c0c0', false);
   centerText('ПРОБЕЛ / ТАП — начать', 362, 24, '#ffe680');
   centerText('← → двигаться   •   пробел / ↑ прыжок (двойной)   •   P пауза   •   M звук', 396, 15, '#d0b0b8', false);
   centerText('кристалл +10   монета +5   бес (прыжок сверху) +25   лава = смерть', 418, 15, '#d0b0b8', false);
   drawSliders(444);
-  if (best) centerText('рекорд: ' + best, 200, 18, '#ffb0a8');
+  if (best) centerText('рекорд: ' + best, 216, 17, '#ffb0a8');
+  drawAchButton(ACH_BTN);
 }
 function drawOver() {
   drawBg(G.camX, G.t); drawLava(G.camX, G.t); drawWorld();
@@ -828,6 +989,7 @@ function drawOver() {
   centerText('очки: ' + Math.floor(G.score), 235, 32, '#ffe680');
   centerText(`кристаллы ${G.crystals}   монеты ${G.coins}   дистанция ${Math.floor(G.dist / 10)} м`, 275, 18, '#f0c0c0', false);
   centerText('рекорд: ' + best + (Math.floor(G.score) >= best && best > 0 ? '  ★ новый!' : ''), 320, 22, '#ffb0a8');
+  if (newAch) centerText(`★ новых достижений: ${newAch}`, 355, 18, '#ffe680');
   centerText('ПРОБЕЛ / ТАП — ещё раз', 395, 24, '#ffffff');
 }
 
@@ -835,27 +997,33 @@ let last = 0, acc = 0, menuT = 0;
 function loop(ts) {
   requestAnimationFrame(loop);
   let dt = Math.min(0.05, (ts - last) / 1000 || 0); last = ts;
-  if (state === 'menu') {
+  if (state === 'menu' || (state === 'ach' && achFrom === 'menu')) {
     menuT += dt; drawMenu(menuT);
+    if (state === 'ach') { drawAchScreen(); jumpPressed = false; return; }
     if (jumpPressed) { jumpPressed = false; startGame(); }
     return;
   }
-  if (state === 'over') { drawOver(); if (jumpPressed) { jumpPressed = false; startGame(); } return; }
+  if (state === 'over') { drawOver(); drawToasts(dt); if (jumpPressed) { jumpPressed = false; startGame(); } return; }
   if (state === 'play') { acc += dt; const step = 1 / 120; while (acc >= step) { update(step); acc -= step; } }
   jumpPressed = false;
   ctx.save();
   if (G.shake > 0) ctx.translate((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
   drawBg(G.camX, G.t); drawLava(G.camX, G.t); drawWorld();
   ctx.restore();
-  drawHud();
+  drawHud(); drawToasts(state === 'play' ? dt : 0);
+  if (state === 'ach') { drawAchScreen(); return; } // открыт из паузы
   if (state === 'pause') {
     ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H);
-    panel(W / 2 - 240, 150, 480, 240);
-    centerText('ПАУЗА', 205, 44, '#fff'); centerText('P / тап вне ползунков — продолжить', 240, 16, '#ddd', false);
-    drawSliders(290);
+    panel(W / 2 - 230, 152, 460, 236);
+    centerText('ПАУЗА', 200, 40, '#fff'); centerText('P / тап вне панели — продолжить', 228, 15, '#ddd', false);
+    drawSliders(262);
+    drawAchButton(ACH_BTN_PAUSE);
   }
 }
 loadAssets().then(() => requestAnimationFrame(loop));
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {}));
+}
 // отладочный хук (для автотестов из консоли)
-window.HELLKA = { get G() { return G; }, get state() { return state; }, start: startGame, jump: () => { jumpPressed = true; }, step: dt => { if (state === 'play') update(dt); }, keys, tb, MUSIC, SFX_EL };
+window.HELLKA = { get G() { return G; }, get state() { return state; }, start: startGame, jump: () => { jumpPressed = true; }, step: dt => { if (state === 'play') update(dt); }, keys, tb, MUSIC, SFX_EL, ACH, unlocked, STATS, toasts, setState: v => { state = v; } };
 })();
