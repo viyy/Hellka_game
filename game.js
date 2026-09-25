@@ -343,12 +343,23 @@ function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Ma
 
 // ───────────────────────── ЗВУК ─────────────────────────
 let AC = null;
+const VOL = {
+  music: Math.min(1, Math.max(0, +(localStorage.getItem('hellka_vol_music') ?? 0.5))),
+  sfx:   Math.min(1, Math.max(0, +(localStorage.getItem('hellka_vol_sfx') ?? 0.7))),
+};
+function setVol(key, v) {
+  VOL[key] = Math.min(1, Math.max(0, v)); localStorage.setItem('hellka_vol_' + key, VOL[key]);
+  if (key === 'music') MUSIC.apply();
+}
+// любой жест пользователя снимает блокировку автозапуска аудио
+for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { if (AC && AC.state === 'suspended') AC.resume().catch(() => {}); });
 function beep(f0, f1, dur, type = 'square', vol = 0.08) {
   try {
     if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
     const o = AC.createOscillator(), g = AC.createGain();
     o.type = type; o.frequency.setValueAtTime(f0, AC.currentTime);
     o.frequency.exponentialRampToValueAtTime(f1, AC.currentTime + dur);
+    vol = Math.max(0.0005, vol * VOL.sfx / 0.7);
     g.gain.setValueAtTime(vol, AC.currentTime); g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + dur);
     o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime + dur);
   } catch (e) {}
@@ -370,13 +381,14 @@ const SFX = {};
 for (const name of Object.keys(BEEPS)) SFX[name] = () => {
   if (sfxMuted) return;
   const a = SFX_EL[name];
-  if (a) { const c = a.cloneNode(); c.volume = 0.7; c.play().catch(() => {}); } else BEEPS[name]();
+  if (VOL.sfx <= 0) return;
+  if (a) { const c = a.cloneNode(); c.volume = VOL.sfx; c.play().catch(() => {}); } else BEEPS[name]();
 };
 
 // ── музыка: assets/music.* (база) и assets/music_fast.* (разгон), см. assets/SOUNDTRACK.md ──
 // Через http: WebAudio с бесшовной петлёй. Через file:// fetch запрещён → <audio loop> (маленький зазор на стыке).
 const MUSIC = {
-  vol: 0.5, muted: false, mode: null, tr: {}, level: 0, playing: false,
+  get vol() { return VOL.music; }, muted: false, mode: null, tr: {}, level: 0, playing: false, pending: false,
   async init() {
     const names = { base: 'music', fast: 'music_fast' };
     try {
@@ -391,9 +403,12 @@ const MUSIC = {
       for (const [k, n] of Object.entries(names)) { const a = new Audio(`assets/${n}.mp3`); a.loop = true; a.volume = 0; a.preload = 'auto'; this.tr[k] = { el: a }; }
       this.mode = 'html';
     }
+    if (this.pending) { this.pending = false; this.start(); }
   },
+  apply() { this.set('base', 1 - this.level); this.set('fast', this.level); },
   start() {
-    if (!this.mode || this.playing) return;
+    if (this.playing) return;
+    if (!this.mode) { this.pending = true; return; } // файлы ещё грузятся — запустим, как только будут готовы
     this.playing = true; this.level = 0;
     if (this.mode === 'wa') {
       AC.resume().catch(() => {});
@@ -416,11 +431,12 @@ const MUSIC = {
   pause() { if (!this.playing) return; if (this.mode === 'wa') AC.suspend(); else for (const t of Object.values(this.tr)) t.el.pause(); },
   resume() { if (!this.playing) return; if (this.mode === 'wa') AC.resume(); else for (const t of Object.values(this.tr)) t.el.play().catch(() => {}); },
   stop() {
+    this.pending = false;
     if (!this.playing) return; this.playing = false;
     if (this.mode === 'wa') for (const t of Object.values(this.tr)) { t.gain.gain.setTargetAtTime(0, AC.currentTime, 0.3); t.src.stop(AC.currentTime + 1.5); }
     else for (const t of Object.values(this.tr)) { t.el.pause(); }
   },
-  toggleMute() { this.muted = !this.muted; sfxMuted = this.muted; this.set('base', 1 - this.level); this.set('fast', this.level); },
+  toggleMute() { this.muted = !this.muted; sfxMuted = this.muted; this.apply(); },
 };
 MUSIC.init();
 
@@ -450,13 +466,46 @@ function bindBtn(id, on, off) {
 bindBtn('bl', () => tb.left = true, () => tb.left = false);
 bindBtn('br', () => tb.right = true, () => tb.right = false);
 bindBtn('bj', () => { jumpPressed = true; keys.__tj = true; }, () => keys.__tj = false);
+// ползунки громкости: рисуются в меню и в паузе, тянутся мышью/пальцем
+const SLIDERS = [{ key: 'music', label: 'Музыка' }, { key: 'sfx', label: 'Эффекты' }];
+const SL = { x: W / 2 - 60, w: 260, h: 12, gap: 40 };
+let sliderY = 0, dragSlider = -1;
+function sliderAt(p) {
+  if (!(state === 'menu' || state === 'pause')) return -1;
+  for (let i = 0; i < SLIDERS.length; i++) {
+    const y = sliderY + i * SL.gap;
+    if (p.x >= SL.x - 14 && p.x <= SL.x + SL.w + 14 && p.y >= y - 14 && p.y <= y + SL.h + 14) return i;
+  }
+  return -1;
+}
+function sliderSet(i, p) { setVol(SLIDERS[i].key, (p.x - SL.x) / SL.w); }
+function drawSliders(y0) {
+  sliderY = y0;
+  ctx.font = 'bold 18px monospace'; ctx.textAlign = 'right';
+  SLIDERS.forEach((sl, i) => {
+    const y = y0 + i * SL.gap, v = VOL[sl.key];
+    ctx.fillStyle = '#f0d0d0'; ctx.fillText(sl.label, SL.x - 22, y + SL.h - 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(SL.x, y, SL.w, SL.h);
+    ctx.fillStyle = v > 0 ? '#d8322a' : '#555'; ctx.fillRect(SL.x, y, SL.w * v, SL.h);
+    ctx.strokeStyle = '#8b6a6e'; ctx.lineWidth = 2; ctx.strokeRect(SL.x + 1, y + 1, SL.w - 2, SL.h - 2);
+    ctx.fillStyle = '#ffe0d0'; ctx.fillRect(SL.x + SL.w * v - 5, y - 5, 10, SL.h + 10);
+    ctx.fillStyle = '#c0a0a8'; ctx.textAlign = 'left'; ctx.font = '16px monospace';
+    ctx.fillText(Math.round(v * 100) + '%', SL.x + SL.w + 14, y + SL.h - 1);
+    ctx.font = 'bold 18px monospace'; ctx.textAlign = 'right';
+  });
+}
 cv.addEventListener('pointerdown', e => {
   const p = toGame(e);
+  const si = sliderAt(p);
+  if (si >= 0) { dragSlider = si; sliderSet(si, p); cv.setPointerCapture(e.pointerId); if (SLIDERS[si].key === 'sfx') SFX.coin(); return; }
   if (state === 'menu' || state === 'over') { startGame(); return; }
   if (p.x > W - 70 && p.y < 70) { togglePause(); return; }
   if (state === 'pause') { togglePause(); return; }
   if (!isTouch) jumpPressed = true;
 });
+cv.addEventListener('pointermove', e => { if (dragSlider >= 0) sliderSet(dragSlider, toGame(e)); });
+cv.addEventListener('pointerup', e => { if (dragSlider >= 0 && SLIDERS[dragSlider].key === 'sfx') SFX.coin(); dragSlider = -1; });
+cv.addEventListener('pointercancel', () => { dragSlider = -1; });
 function toGame(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; }
 const inLeft  = () => keys.ArrowLeft  || keys.KeyA || tb.left;
 const inRight = () => keys.ArrowRight || keys.KeyD || tb.right;
@@ -753,13 +802,14 @@ function centerText(s, y, size, col, bold = true) {
 function drawMenu(t) {
   drawBg(t * 60, t); drawLava(t * 60, t);
   spr('player_run', t * 10, W / 2 - MANIFEST.player_run.w / 2, 322 - MANIFEST.player_run.h);
-  panel(W / 2 - 300, 60, 600, 150);
-  centerText('ХЕЛЛКА', 130, 64, '#ff4a4a');
-  centerText('бесконечный платформер', 175, 22, '#f0c0c0', false);
-  centerText('ПРОБЕЛ / ТАП — начать', 380, 24, '#ffe680');
-  centerText('← → двигаться   •   пробел / ↑ прыжок (двойной)   •   P пауза   •   M звук', 420, 16, '#d0b0b8', false);
-  centerText('кристалл +10   монета +5   бес (прыжок сверху) +25   лава = смерть', 445, 16, '#d0b0b8', false);
-  if (best) centerText('рекорд: ' + best, 490, 20, '#ffb0a8');
+  panel(W / 2 - 300, 60, 600, 158);
+  centerText('ХЕЛЛКА', 126, 64, '#ff4a4a');
+  centerText('бесконечный платформер', 168, 22, '#f0c0c0', false);
+  centerText('ПРОБЕЛ / ТАП — начать', 362, 24, '#ffe680');
+  centerText('← → двигаться   •   пробел / ↑ прыжок (двойной)   •   P пауза   •   M звук', 396, 15, '#d0b0b8', false);
+  centerText('кристалл +10   монета +5   бес (прыжок сверху) +25   лава = смерть', 418, 15, '#d0b0b8', false);
+  drawSliders(444);
+  if (best) centerText('рекорд: ' + best, 200, 18, '#ffb0a8');
 }
 function drawOver() {
   drawBg(G.camX, G.t); drawLava(G.camX, G.t); drawWorld();
@@ -789,7 +839,12 @@ function loop(ts) {
   drawBg(G.camX, G.t); drawLava(G.camX, G.t); drawWorld();
   ctx.restore();
   drawHud();
-  if (state === 'pause') { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H); centerText('ПАУЗА', H / 2, 48, '#fff'); centerText('P / тап — продолжить', H / 2 + 40, 18, '#ddd', false); }
+  if (state === 'pause') {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H);
+    panel(W / 2 - 240, 150, 480, 240);
+    centerText('ПАУЗА', 205, 44, '#fff'); centerText('P / тап вне ползунков — продолжить', 240, 16, '#ddd', false);
+    drawSliders(290);
+  }
 }
 loadAssets().then(() => requestAnimationFrame(loop));
 // отладочный хук (для автотестов из консоли)
