@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Хеллка — бесконечный платформер</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #12060c; overflow: hidden; font-family: "Segoe UI", system-ui, sans-serif; }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; touch-action: none; }
+  #touch { position: fixed; inset: 0; pointer-events: none; display: none; }
+  #touch.on { display: block; }
+  .btn { position: absolute; bottom: 4vh; width: 15vh; height: 15vh; min-width: 64px; min-height: 64px;
+         border-radius: 18px; border: 3px solid #2a2a2a; background: rgba(40,40,40,.55);
+         color: #ddd; font-size: 6vh; display: flex; align-items: center; justify-content: center;
+         pointer-events: auto; user-select: none; }
+  .btn:active, .btn.down { background: rgba(200,60,60,.55); }
+  #bl { left: 3vh; } #br { left: calc(6vh + 15vh); } #bj { right: 3vh; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="game" width="960" height="540"></canvas></div>
+<div id="touch">
+  <div class="btn" id="bl">◀</div>
+  <div class="btn" id="br">▶</div>
+  <div class="btn" id="bj">▲</div>
+</div>
+<script src="assets/manifest.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
