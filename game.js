@@ -388,7 +388,7 @@ for (const name of Object.keys(BEEPS)) SFX[name] = () => {
 // ── музыка: assets/music.* (база) и assets/music_fast.* (разгон), см. assets/SOUNDTRACK.md ──
 // Через http: WebAudio с бесшовной петлёй. Через file:// fetch запрещён → <audio loop> (маленький зазор на стыке).
 const MUSIC = {
-  get vol() { return VOL.music; }, muted: false, mode: null, tr: {}, level: 0, playing: false, pending: false,
+  get vol() { return VOL.music; }, muted: false, mode: null, tr: {}, level: 0, playing: false, pending: false, status: 'музыка: загрузка…',
   async init() {
     const names = { base: 'music', fast: 'music_fast' };
     try {
@@ -397,11 +397,11 @@ const MUSIC = {
         const r = await fetch(`assets/${n}.ogg`); if (!r.ok) throw new Error(n);
         this.tr[k] = { buf: await AC.decodeAudioData(await r.arrayBuffer()) };
       }
-      this.mode = 'wa';
+      this.mode = 'wa'; this.status = 'музыка: WebAudio (бесшовная петля)';
     } catch (e) {
       this.tr = {};
       for (const [k, n] of Object.entries(names)) { const a = new Audio(`assets/${n}.mp3`); a.loop = true; a.volume = 0; a.preload = 'auto'; this.tr[k] = { el: a }; }
-      this.mode = 'html';
+      this.mode = 'html'; this.status = 'музыка: HTML audio (' + (location.protocol === 'file:' ? 'file://' : String(e && e.message || e).slice(0, 40)) + ')';
     }
     if (this.pending) { this.pending = false; this.start(); }
   },
@@ -420,7 +420,8 @@ const MUSIC = {
   },
   set(k, v) {
     const t = this.tr[k]; if (!t) return; v = this.muted ? 0 : v * this.vol;
-    if (this.mode === 'wa') t.gain.gain.setTargetAtTime(v, AC.currentTime, 0.05); else t.el.volume = v;
+    if (this.mode === 'wa') { if (t.gain) t.gain.gain.setTargetAtTime(v, AC.currentTime, 0.05); }
+    else if (t.el) t.el.volume = v;
   },
   // level 0..1 — доля «быстрого» слоя; вызывается каждый кадр из update
   update(target, dt) {
@@ -809,6 +810,7 @@ function drawMenu(t) {
   centerText('← → двигаться   •   пробел / ↑ прыжок (двойной)   •   P пауза   •   M звук', 396, 15, '#d0b0b8', false);
   centerText('кристалл +10   монета +5   бес (прыжок сверху) +25   лава = смерть', 418, 15, '#d0b0b8', false);
   drawSliders(444);
+  ctx.font = '12px monospace'; ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(255,220,220,0.55)'; ctx.fillText(MUSIC.status, 12, H - 8);
   if (best) centerText('рекорд: ' + best, 200, 18, '#ffb0a8');
 }
 function drawOver() {
