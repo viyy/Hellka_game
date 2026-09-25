@@ -22,7 +22,8 @@ const MANIFEST = {
   tile:        { frames: 2, w: 48, h: 48 },   // 0 — верх платформы, 1 — тело
   spike:       { frames: 1, w: 32, h: 32 },
   lava:        { frames: 2, w: 64, h: 64 },
-  bg_far:      { frames: 1, w: 960, h: 540 }, // замок, луна (parallax дальний)
+  bg_sky:      { frames: 1, w: 960, h: 540 }, // небо и луна, статично
+  bg_far:      { frames: 1, w: 960, h: 540 }, // замок с прозрачным небом (parallax дальний)
   bg_mid:      { frames: 1, w: 960, h: 540 }, // скалы (parallax ближний, с прозрачностью)
   portrait:    { frames: 1, w: 56, h: 56 },
 };
@@ -250,7 +251,7 @@ function makeLava(phase) {
   g.fillStyle = '#ffe680'; g.fillRect(0, 0, 64, 2);
   return c;
 }
-function makeBgFar() {
+function makeBgSky() {
   const c = document.createElement('canvas'); c.width = 960; c.height = 540;
   const g = c.getContext('2d');
   const grd = g.createLinearGradient(0, 0, 0, 540);
@@ -260,7 +261,12 @@ function makeBgFar() {
   g.fillStyle = '#c8202a'; g.beginPath(); g.arc(640, 150, 95, 0, 7); g.fill();
   g.fillStyle = '#e0303a'; g.beginPath(); g.arc(640, 150, 80, 0, 7); g.fill();
   g.fillStyle = '#b81c26'; [[600,120,14],[670,180,20],[650,110,8],[610,190,10]].forEach(([x,y,r])=>{g.beginPath();g.arc(x,y,r,0,7);g.fill();});
-  // замок: башни
+  return c;
+}
+function makeBgFar() {
+  const c = document.createElement('canvas'); c.width = 960; c.height = 540;
+  const g = c.getContext('2d');
+  // замок: башни (небо прозрачное — его рисует bg_sky)
   const rnd = mulberry(3);
   g.fillStyle = '#3a0d18';
   for (let x = 0; x < 960; x += 60 + rnd() * 80) {
@@ -307,6 +313,7 @@ function fallback(key) {
     case 'tile':        return sheet([makeTile(true), makeTile(false)]);
     case 'spike':       return makeSpike();
     case 'lava':        return sheet([makeLava(0), makeLava(1)]);
+    case 'bg_sky':      return makeBgSky();
     case 'bg_far':      return makeBgFar();
     case 'bg_mid':      return makeBgMid();
     case 'portrait':    return makePortrait();
@@ -709,6 +716,7 @@ function update(dt) {
 
 // ───────────────────────── РЕНДЕР ─────────────────────────
 function drawBg(camX, t) {
+  ctx.drawImage(IMG.bg_sky, 0, 0, W, H); // статичное небо с луной
   for (const [key, k] of [['bg_far', 0.15], ['bg_mid', 0.4]]) {
     const im = IMG[key], bw = Math.max(W, Math.round(H * im.width / im.height));
     const ox = -(camX * k) % bw;
@@ -810,7 +818,6 @@ function drawMenu(t) {
   centerText('← → двигаться   •   пробел / ↑ прыжок (двойной)   •   P пауза   •   M звук', 396, 15, '#d0b0b8', false);
   centerText('кристалл +10   монета +5   бес (прыжок сверху) +25   лава = смерть', 418, 15, '#d0b0b8', false);
   drawSliders(444);
-  ctx.font = '12px monospace'; ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(255,220,220,0.55)'; ctx.fillText(MUSIC.status, 12, H - 8);
   if (best) centerText('рекорд: ' + best, 200, 18, '#ffb0a8');
 }
 function drawOver() {

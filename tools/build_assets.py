@@ -123,9 +123,30 @@ save_sheet('tile', black_pair('662ed930', 96), target_h=48)
 save_sheet('lava', black_pair('4d9a5911', 128), target_h=64)
 
 # ── фоны ──
-far = seamless(Image.open(raw('87b6d4c2')), (960, 540))
+# Фоны. Если в assets_raw лежат файлы с именами bg_sky.png / bg_far.png / bg_mid.png — берём их,
+# иначе старые генерации по хэш-префиксу. Слои без альфы, но с ярко-зелёным фоном, кеим по цвету.
+def raw_named(name, fallback_prefix=None):
+    p = os.path.join(RAW, name)
+    if os.path.exists(p): return p
+    return raw(fallback_prefix) if fallback_prefix else None
+def chroma_key(im, thr=90):
+    im = im.convert('RGBA')
+    if im.getextrema()[3][0] < 255: return im  # уже есть прозрачность
+    px = im.load(); w, h = im.size
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if g > 150 and r < thr and b < thr: px[x, y] = (r, g, b, 0)
+    return im
+sky_src = raw_named('bg_sky.png')
+if sky_src:
+    Image.open(sky_src).convert('RGB').resize((960, 540), Image.LANCZOS).save(os.path.join(OUT, 'bg_sky.png'))
+    manifest['bg_sky'] = {'frames': 1, 'w': 960, 'h': 540}; print('bg_sky 960x540 (статичный)')
+else:
+    print('bg_sky: файла assets_raw/bg_sky.png нет — игра нарисует процедурное небо')
+far = seamless(chroma_key(Image.open(raw_named('bg_far.png', '87b6d4c2'))), (960, 540))
 far.save(os.path.join(OUT, 'bg_far.png')); manifest['bg_far'] = {'frames': 1, 'w': 1920, 'h': 540}
-mid = seamless(Image.open(raw('fb06b7b0')), (960, 540))
+mid = seamless(chroma_key(Image.open(raw_named('bg_mid.png', 'fb06b7b0'))), (960, 540))
 mid.save(os.path.join(OUT, 'bg_mid.png')); manifest['bg_mid'] = {'frames': 1, 'w': 1920, 'h': 540}
 print('bg_far/bg_mid 1920x540 (зеркальная стыковка)')
 

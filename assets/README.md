@@ -18,13 +18,14 @@
 | `tile.png` | 2 | 1:1 (напр. 64×64) | Кадр 0 — верх платформы (с каменной кромкой), кадр 1 — тело кладки. Должен **бесшовно** стыковаться по горизонтали |
 | `spike.png` | 1 | 1:1 | 4 стальных шипа в ряд на прозрачном фоне, острия вверх |
 | `lava.png` | 2 | 1:1 | 2 кадра лавы, бесшовный тайл по горизонтали |
-| `bg_far.png` | 1 | 16:9 (1920×1080) | Дальний фон: багровое небо, красная луна, силуэт готического замка. **Бесшовный по горизонтали** |
+| `bg_sky.png` | 1 | 16:9 (1920×1080) | Статичное небо с луной, без построек. Не двигается |
+| `bg_far.png` | 1 | 16:9, прозрачное небо | Дальний слой: замок, горы, мосты, лава на прозрачном фоне. **Бесшовный по горизонтали**, без луны |
 | `bg_mid.png` | 1 | 16:9, прозрачный верх | Ближний слой параллакса: тёмные скалы, знамёна с трезубцем, цепи. Бесшовный по горизонтали |
 | `portrait.png` | 1 | 1:1 | Портрет Хеллки для HUD, в рамке |
 
 ## Сборка из сырых генераций
 
-Сырые файлы лежат в `assets_raw/` (PixelLab GIF для персонажа + PNG для остального). Скрипт нарезает их в формат игры:
+Сырые файлы лежат в `assets_raw/` (PixelLab GIF для персонажа + PNG для остального). Фоны скрипт ищет сначала по именам `bg_sky.png`, `bg_far.png`, `bg_mid.png` в `assets_raw/`, иначе берёт старые генерации. Слой на ярко-зелёном фоне (#00FF00) автоматически кеится в прозрачность. Скрипт нарезает всё в формат игры:
 
 ```bash
 python tools/build_assets.py
@@ -98,10 +99,16 @@ Pixel art single tile 64x64, four sharp steel spikes in a row pointing up, gray 
 Pixel art sprite sheet, 2 tiles in a single horizontal row, same size, seamless tileable molten lava surface: bright orange-yellow with dark red crust patches and bubbles, glowing yellow top edge, tile 2 has slightly shifted bubbles for a two-frame animation. Both must tile seamlessly left-to-right. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette, game asset tileset.
 ```
 
+### bg_sky.png
+
+```
+Pixel art game background of only the sky, 1920x1080, dark fantasy hell atmosphere: crimson-to-dark-red vertical gradient, a few long thin dark cloud streaks, one huge blood-red full moon with visible craters placed in the upper right third. No ground, no buildings, no mountains, no horizon line, no characters, no text — sky and moon only. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette, crimson / black color scheme.
+```
+
 ### bg_far.png
 
 ```
-Pixel art seamless horizontally tileable game background, 1920x1080, dark fantasy hell landscape: crimson gradient sky, huge blood-red full moon in the upper right, silhouette of a gothic castle with many spires and small lit orange windows, faint lava glow along the bottom. No characters, no text. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette, crimson / black / orange color scheme.
+Pixel art seamless horizontally tileable parallax layer, 1920x1080, on a transparent background: silhouette of a gothic hell castle with many spires and small lit orange windows, stone bridges with arches, distant dark red mountains, lava river and rocky ground filling the bottom third. The sky area above the skyline must be fully transparent (or, if transparency is not supported, solid pure green #00FF00). No moon, no sky gradient, no clouds, no characters, no text. Left and right edges must match for seamless tiling. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette, crimson / black / orange color scheme.
 ```
 
 ### bg_mid.png
