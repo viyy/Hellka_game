@@ -1,5 +1,5 @@
 // Сгенерировано tools/build_assets.py — не править руками
-const CACHE = 'hellka-edf2156d0e';
+const CACHE = 'hellka-0420770d2b';
 const FILES = [
 "./",
 "index.html",

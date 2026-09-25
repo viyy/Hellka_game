@@ -351,6 +351,13 @@ function spr(key, frame, x, y, flip, w, h) {
 
 function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
+// мягкое свечение под кристаллом, нарисованное один раз (shadowBlur каждый кадр слишком дорог для мобильных)
+const GLOW = (() => {
+  const c = document.createElement('canvas'); c.width = 52; c.height = 58; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(26, 29, 4, 26, 29, 28); gr.addColorStop(0, 'rgba(255,60,60,0.55)'); gr.addColorStop(1, 'rgba(255,60,60,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 52, 58); return c;
+})();
+
 // ───────────────────────── ЗВУК ─────────────────────────
 let AC = null;
 const VOL = {
@@ -471,10 +478,11 @@ if (isTouch) touchEl.classList.add('on');
 const tb = { left: false, right: false };
 function bindBtn(id, on, off) {
   const el = document.getElementById(id);
-  const down = e => { e.preventDefault(); el.classList.add('down'); on(); };
+  const down = e => { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (x) {} el.classList.add('down'); on(); };
   const up = e => { e.preventDefault(); el.classList.remove('down'); off(); };
   el.addEventListener('pointerdown', down); el.addEventListener('pointerup', up);
-  el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', up);
+  el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
+  el.addEventListener('contextmenu', e => e.preventDefault()); // долгое нажатие не должно открывать меню
 }
 bindBtn('bl', () => tb.left = true, () => tb.left = false);
 bindBtn('br', () => tb.right = true, () => tb.right = false);
@@ -886,7 +894,7 @@ function drawWorld() {
   for (const it of g.items) {
     if (it.got) continue; const sx = it.x - cx; if (sx > W || sx < -40) continue;
     const bob = Math.sin(it.ph) * 4;
-    if (it.t === 'crystal') { ctx.save(); ctx.shadowColor = '#ff3030'; ctx.shadowBlur = 12; spr('crystal', 0, sx, it.y + bob); ctx.restore(); }
+    if (it.t === 'crystal') { ctx.drawImage(GLOW, sx - 14, it.y + bob - 12); spr('crystal', 0, sx, it.y + bob); }
     else spr('coin', it.ph * 2, sx, it.y + bob);
   }
   for (const e of g.enemies) {
@@ -918,6 +926,12 @@ function drawWorld() {
 function panel(x, y, w, h) {
   ctx.fillStyle = 'rgba(20,10,14,0.7)'; ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = '#5a4a52'; ctx.lineWidth = 3; ctx.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+}
+const SHOW_FPS = /[?&]fps/.test(location.search);
+let fpsAcc = 0, fpsN = 0, fpsShown = 0;
+function drawFps(dt) {
+  fpsAcc += dt; fpsN++; if (fpsAcc >= 0.5) { fpsShown = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
+  ctx.textAlign = 'left'; ctx.font = 'bold 14px monospace'; ctx.fillStyle = fpsShown < 45 ? '#ff6a6a' : '#8f8'; ctx.fillText(fpsShown + ' fps', 12, H - 12);
 }
 function drawHud() {
   const g = G;
@@ -1027,7 +1041,7 @@ function loop(ts) {
   if (G.shake > 0) ctx.translate((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
   drawBg(G.camX, G.t); drawLava(G.camX, G.t); drawWorld();
   ctx.restore();
-  drawHud(); drawToasts(state === 'play' ? dt : 0);
+  drawHud(); drawToasts(state === 'play' ? dt : 0); if (SHOW_FPS) drawFps(dt);
   if (state === 'ach') { drawAchScreen(); return; } // открыт из паузы
   if (state === 'pause') {
     ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H);
