@@ -643,16 +643,13 @@ function drawAchButton(b) {
   ctx.fillText(`★ Достижения  ${n}/${ACH.length}`, b.x + b.w / 2, b.y + 27);
 }
 function inBtn(p, b) { return p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h; }
-// ── автор ──
-const AUTHOR = { name: 'Nelfias', tg: '@nelfias_cosph', url: 'https://t.me/nelfias_cosph' };
-const AUTHOR_BTN = { x: W - 250, y: H - 58, w: 230, h: 40 }; // не наезжает на проценты ползунков
+// ── автор: неброская подпись, ссылка спрятана в ник (без подсветки) ──
+const AUTHOR = { name: 'Nelfias', url: 'https://t.me/nelfias_cosph' };
+const AUTHOR_BTN = { x: W - 190, y: H - 76, w: 178, h: 22 }; // над кромкой лавы
 let authorHover = false;
 function drawAuthor() {
-  panel(AUTHOR_BTN.x, AUTHOR_BTN.y, AUTHOR_BTN.w, AUTHOR_BTN.h);
-  ctx.textAlign = 'right'; ctx.font = '13px monospace'; ctx.fillStyle = '#c0a0a8';
-  ctx.fillText('автор: ' + AUTHOR.name, AUTHOR_BTN.x + AUTHOR_BTN.w - 14, AUTHOR_BTN.y + 16);
-  ctx.font = 'bold 15px monospace'; ctx.fillStyle = authorHover ? '#ffffff' : '#7fc8ff';
-  ctx.fillText('✈ ' + AUTHOR.tg, AUTHOR_BTN.x + AUTHOR_BTN.w - 14, AUTHOR_BTN.y + 33);
+  ctx.textAlign = 'right'; ctx.font = '14px monospace'; ctx.fillStyle = 'rgba(208,176,184,0.75)';
+  ctx.fillText('автор: ' + AUTHOR.name, AUTHOR_BTN.x + AUTHOR_BTN.w, AUTHOR_BTN.y + 16);
 }
 
 function startGame() {
