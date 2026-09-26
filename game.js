@@ -678,7 +678,7 @@ const ACH = [
   { id: 'no_hit_500',   t: 'Без царапины',   d: '500 очков, не получив урона',         f: r => r.score >= 500 && r.hits === 0 },
   { id: 'deaths_10',    t: 'Упорство',       d: 'Погибнуть 10 раз и вернуться',      f: (r, tot) => tot.deaths >= 10 },
   { id: 'score_666',    t: 'Княжулечка Тьмулички', d: 'Закончить забег ровно с 666 очками', f: (r, tot, end) => end && Math.floor(r.score) === 666 },
-  { id: 'score_6666',   t: 'Княжка Тьмы',    d: '6666 очков за один забег',          f: r => r.score >= 6666 },
+  { id: 'score_6666',   t: 'Княжна Тьмы',    d: '6666 очков за один забег',          f: r => r.score >= 6666 },
   { id: 'crystals_666', t: 'Три шестёрки',   d: '666 кристаллов за всё время',       f: (r, tot) => tot.crystals + r.crystals >= 666 },
   { id: 'last_heart_60',t: 'Не сегодня',     d: '60 секунд на последнем сердце',     f: r => r.p.hp === 1 && r.hp1T >= 0 && r.t - r.hp1T >= 60 },
   { id: 'combo_40',     t: 'Без промаха',    d: 'Комбо 40 — множитель ×3',           f: r => r.comboMax >= 40 },
@@ -869,7 +869,7 @@ function pickTileset(r) {
 const SKINS = {
   default: { name: 'Хеллка',      dir: 'assets',            unlock: null },
   dark:    { name: 'Княжна Тьмы', dir: 'assets/skins/dark', unlock: 'score_2500' }, // открывается за «Легенду ада»
-  queen:   { name: 'Владычица Чертовска', dir: 'assets/skins/queen', unlock: 'score_6666' }, // за «Княжку Тьмы»
+  queen:   { name: 'Владычица Чертовска', dir: 'assets/skins/queen', unlock: 'score_6666' }, // за «Княжну Тьмы»
 };
 const SKIN_KEYS = ['player_run', 'player_jump', 'player_dead', 'player_hurt', 'portrait'];
 const SKIN_IMG = {};
