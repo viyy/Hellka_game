@@ -183,6 +183,43 @@ if os.path.isdir(en_raw):
                 part = im.crop((k * cw, 0, (k + 1) * cw, im.height)); bb = alpha_bbox(part); parts.append(part.crop(bb) if bb else part)
         save_sheet(name, parts, target_h=h, halign='right' if name == 'skull' else 'center')
 
+# ── декор (необязательно): assets_raw/deco/<имя>.png → assets/deco_<имя>.png / ceiling.png ──
+deco_raw = os.path.join(RAW, 'deco')
+if os.path.isdir(deco_raw):
+    for name, frames, h, key in [('banner', 1, 64, 'deco_banner'), ('torch', 2, 44, 'deco_torch'), ('lantern', 1, 80, 'deco_lantern'), ('sign', 1, 52, 'deco_sign'), ('chain', 1, 32, 'deco_chain')]:
+        sp = os.path.join(deco_raw, name + '.png')
+        if not os.path.exists(sp): continue
+        im = chroma_key(Image.open(sp)); im = im.crop(alpha_bbox(im))
+        if frames > 1:  # анимация: выравниваем кадры по «якорю» — нижней трети объекта (рукоять факела), чтобы не плясал
+            cw = im.width // frames; cols = [im.crop((k * cw, 0, (k + 1) * cw, im.height)) for k in range(frames)]
+            cols = [c.crop(alpha_bbox(c)) for c in cols]
+            anchors = []
+            for c in cols:
+                low = c.crop((0, int(c.height * 0.65), c.width, c.height)); bb = alpha_bbox(low)
+                anchors.append(((bb[0] + bb[2]) / 2 if bb else c.width / 2, c.height))  # центр x рукояти, низ
+            # общий холст: все кадры так, чтобы якоря совпали
+            left = max(a[0] for a in anchors); right = max(c.width - a[0] for c, a in zip(cols, anchors)); top = max(c.height for c in cols)
+            W2, H2 = int(round(left + right)), top; parts = []
+            for c, a in zip(cols, anchors):
+                canvas = Image.new('RGBA', (W2, H2), (0, 0, 0, 0)); canvas.paste(c, (int(round(left - a[0])), H2 - c.height), c); parts.append(canvas)
+        else: parts = [im]
+        if key == 'deco_chain':  # цепи — фон: затемняем сам спрайт
+            from PIL import ImageEnhance
+            parts = [ImageEnhance.Brightness(p0).enhance(0.55) for p0 in parts]
+        save_sheet(key, parts, target_h=h)
+    sp = os.path.join(deco_raw, 'ceiling.png')
+    if os.path.exists(sp):  # одна плитка: кладка сверху + сталактиты снизу, бесшовная по горизонтали
+        im = chroma_key(Image.open(sp))
+        # белый/светлый фон, связанный с краем картинки → прозрачность (генераторы часто отдают белый вместо альфы)
+        import numpy as _np
+        from scipy import ndimage as _ndi
+        a = _np.asarray(im).astype(int); near_white = (a[..., :3].min(axis=2) > 225) & (a[..., 3] > 0)
+        lab, n = _ndi.label(near_white); border = set(_np.unique(_np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+        if border:
+            kill = _np.isin(lab, list(border)); a[kill, 3] = 0; im = Image.fromarray(a.astype('uint8'), 'RGBA')
+        im = im.crop(alpha_bbox(im)); im = im.resize((48, round(48 * im.height / im.width)), Image.LANCZOS)
+        im.save(os.path.join(OUT, 'ceiling.png')); manifest['ceiling'] = {'frames': 1, 'w': 48, 'h': im.height}; print(f'ceiling 48x{im.height}')
+
 # ── тайлы на чёрном фоне: две плитки рядом ──
 def black_pair(prefix, size):
     path = prefix if os.path.isabs(prefix) or os.path.exists(prefix) else raw(prefix)

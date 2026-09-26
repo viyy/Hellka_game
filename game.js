@@ -36,6 +36,12 @@ const MANIFEST = {
   pw_magnet:   { frames: 1, w: 30, h: 30 },
   pw_x2:       { frames: 1, w: 30, h: 30 },
   pw_fire:     { frames: 1, w: 30, h: 30 },
+  deco_banner: { frames: 1, w: 28, h: 64 },   // стяг под платформой
+  deco_torch:  { frames: 2, w: 20, h: 44 },   // факел на платформе (2 кадра пламени)
+  deco_lantern:{ frames: 1, w: 30, h: 80 },   // фонарь-столб
+  deco_sign:   { frames: 1, w: 44, h: 52 },   // указатель со стрелкой
+  deco_chain:  { frames: 1, w: 8, h: 32 },    // звено цепи (повторяется вниз)
+  ceiling:     { frames: 1, w: 48, h: 64 },   // потолок: кладка + сталактиты по нижней кромке
 };
 const IMG = {};
 
@@ -350,6 +356,56 @@ function makeTwitchIcon() {
   g.fillStyle = '#fff'; g.fillRect(16, 12, 4, 10); g.fillRect(24, 12, 4, 10); // «глаза» как у логотипа
   return c;
 }
+// ── процедурный декор (заглушки, пока нет PNG в assets_raw/deco/) ──
+function cnv(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; }
+function makeBanner() {
+  const [c, g] = cnv(28, 64);
+  g.fillStyle = '#3a2a30'; g.fillRect(0, 0, 28, 5);                       // перекладина
+  g.fillStyle = '#7a1420'; g.beginPath(); g.moveTo(3, 5); g.lineTo(25, 5); g.lineTo(25, 50); g.lineTo(14, 62); g.lineTo(3, 50); g.closePath(); g.fill();
+  g.fillStyle = '#9a1c2a'; g.fillRect(6, 8, 4, 40);                         // блик
+  g.fillStyle = '#ffb02a'; g.fillRect(13, 18, 2, 18); g.fillRect(9, 18, 2, 8); g.fillRect(17, 18, 2, 8); g.fillRect(9, 16, 10, 2); // трезубец
+  g.fillStyle = '#4a0c14'; g.fillRect(3, 48, 22, 2);
+  return c;
+}
+function makeTorch() {
+  const frames = [];
+  for (let f = 0; f < 2; f++) {
+    const [c, g] = cnv(20, 44);
+    g.fillStyle = '#2a2126'; g.fillRect(8, 20, 4, 24); g.fillStyle = '#6a5a62'; g.fillRect(6, 18, 8, 4); // рукоять и обруч
+    g.fillStyle = '#ff5a1e'; g.beginPath(); g.moveTo(10, 2 + f * 3); g.lineTo(17, 16); g.lineTo(3, 16); g.closePath(); g.fill();
+    g.fillStyle = '#ffd23a'; g.beginPath(); g.moveTo(10, 7 + f * 2); g.lineTo(14, 16); g.lineTo(6, 16); g.closePath(); g.fill();
+    frames.push(c);
+  }
+  return sheet(frames);
+}
+function makeLantern() {
+  const [c, g] = cnv(30, 80);
+  g.fillStyle = '#1e1a22'; g.fillRect(13, 22, 4, 58); g.fillRect(8, 76, 14, 4);     // столб и основание
+  g.fillStyle = '#3a3040'; g.fillRect(6, 0, 18, 4); g.fillRect(8, 4, 14, 20);        // фонарь
+  g.fillStyle = '#ffb02a'; g.fillRect(11, 8, 8, 12); g.fillStyle = '#fff0a0'; g.fillRect(13, 10, 4, 6);
+  g.fillStyle = '#1e1a22'; g.fillRect(8, 4, 2, 20); g.fillRect(20, 4, 2, 20);
+  return c;
+}
+function makeSign() {
+  const [c, g] = cnv(44, 52);
+  g.fillStyle = '#3a2a1a'; g.fillRect(20, 14, 4, 38);                                 // столб
+  g.fillStyle = '#6a4a2a'; g.fillRect(2, 4, 40, 18); g.fillStyle = '#8a6a3a'; g.fillRect(4, 6, 36, 3); // доска
+  g.fillStyle = '#d8322a'; g.fillRect(10, 11, 16, 4); g.beginPath(); g.moveTo(26, 8); g.lineTo(34, 13); g.lineTo(26, 18); g.closePath(); g.fill(); // стрелка
+  return c;
+}
+function makeChain() {
+  const [c, g] = cnv(8, 32);
+  g.fillStyle = '#4a4a52'; g.fillRect(1, 0, 6, 12); g.fillStyle = '#1a1a22'; g.fillRect(3, 3, 2, 6);   // звено
+  g.fillStyle = '#5a5a62'; g.fillRect(2, 12, 4, 8); g.fillStyle = '#4a4a52'; g.fillRect(1, 20, 6, 12); g.fillStyle = '#1a1a22'; g.fillRect(3, 23, 2, 6);
+  return c;
+}
+function makeCeiling() {
+  const [c, g] = cnv(48, 64);
+  const t = makeTile(false); g.drawImage(t, 0, 0, 32, 32, 0, 0, 48, 48);
+  g.fillStyle = '#2a2126';
+  for (const [x, h] of [[4, 16], [18, 10], [30, 14], [42, 8]]) { g.beginPath(); g.moveTo(x - 5, 48); g.lineTo(x + 5, 48); g.lineTo(x, 48 + h); g.closePath(); g.fill(); }
+  return c;
+}
 function makePwIcon(col, glyph) {
   const c = document.createElement('canvas'); c.width = 30; c.height = 30; const g = c.getContext('2d');
   g.fillStyle = '#1a0408'; g.beginPath(); g.arc(15, 15, 14, 0, 7); g.fill();
@@ -393,6 +449,12 @@ function fallback(key) {
     case 'pw_magnet':   return makePwIcon('#ff8a2a', 'U');
     case 'pw_x2':       return makePwIcon('#ffd23a', '×2');
     case 'pw_fire':     return makePwIcon('#ff5a1e', '♦');
+    case 'deco_banner': return makeBanner();
+    case 'deco_torch':  return makeTorch();
+    case 'deco_lantern':return makeLantern();
+    case 'deco_sign':   return makeSign();
+    case 'deco_chain':  return makeChain();
+    case 'ceiling':     return makeCeiling();
   }
 }
 async function loadAssets() {
@@ -433,6 +495,13 @@ const GLOW = (() => {
   const c = document.createElement('canvas'); c.width = 52; c.height = 58; const g = c.getContext('2d');
   const gr = g.createRadialGradient(26, 29, 4, 26, 29, 28); gr.addColorStop(0, 'rgba(255,60,60,0.55)'); gr.addColorStop(1, 'rgba(255,60,60,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 52, 58); return c;
+})();
+
+// тёплый ореол фонаря: радиальный градиент, рисуется позади спрайта
+const LAMP_GLOW = (() => {
+  const c = document.createElement('canvas'); c.width = 120; c.height = 120; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(60, 60, 4, 60, 60, 58); gr.addColorStop(0, 'rgba(255,190,80,0.45)'); gr.addColorStop(0.5, 'rgba(255,150,50,0.18)'); gr.addColorStop(1, 'rgba(255,120,30,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 120, 120); return c;
 })();
 
 // ───────────────────────── ЗВУК ─────────────────────────
@@ -631,9 +700,43 @@ cv.addEventListener('pointermove', e => {
 cv.addEventListener('pointerup', e => { if (dragSlider >= 0 && SLIDERS[dragSlider].key === 'sfx') SFX.coin(); dragSlider = -1; });
 cv.addEventListener('pointercancel', () => { dragSlider = -1; });
 function toGame(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; }
-const inLeft  = () => keys.ArrowLeft  || keys.KeyA || tb.left;
-const inRight = () => keys.ArrowRight || keys.KeyD || tb.right;
-const inJumpHeld = () => keys.Space || keys.ArrowUp || keys.KeyW || keys.__tj;
+// ── геймпад (Gamepad API): стик/крестовина — движение, A — прыжок, Start — пауза/старт, B — назад,
+//    X — вызов дня, Y — достижения, бамперы — скин / страницы. Опрашивается каждый кадр в loop().
+const gp = { on: false, left: false, right: false, jump: false, prev: {}, name: '' };
+function pollGamepad() {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let g = null; for (const q of pads) if (q && q.connected) { g = q; break; }
+  gp.on = !!g; if (!g) { gp.left = gp.right = gp.jump = false; return; }
+  gp.name = g.id.slice(0, 24);
+  const b = i => !!(g.buttons[i] && (g.buttons[i].pressed || g.buttons[i].value > 0.5));
+  const ax = g.axes[0] || 0;
+  gp.left = ax < -0.4 || b(14); gp.right = ax > 0.4 || b(15); gp.jump = b(0) || b(12) || (g.axes[1] || 0) < -0.6;
+  const edge = i => { const v = b(i), was = !!gp.prev[i]; gp.prev[i] = v; return v && !was; };
+  const jumpEdge = (() => { const v = gp.jump, was = !!gp.prev.j; gp.prev.j = v; return v && !was; })();
+  if (jumpEdge) jumpPressed = true;
+  const eStart = edge(9), eA = edge(0), eB = edge(1), eX = edge(2), eY = edge(3), eLB = edge(4), eRB = edge(5), eL = edge(14), eR = edge(15);
+  if (cardShown && (eA || eB || eStart)) { cardShown = null; jumpPressed = false; return; }
+  if (state === 'ach') { if (eLB || eL) achFlip(-1); if (eRB || eR) achFlip(1); if (eB || eStart || eY) closeAch(); jumpPressed = false; return; }
+  if (state === 'stats') { if (eB || eStart || eA) state = 'menu'; jumpPressed = false; return; }
+  if (state === 'menu') {
+    if (eStart) { jumpPressed = false; startGame('endless'); return; }
+    if (eX) { jumpPressed = false; startGame('daily'); return; }
+    if (eY) { openAch('menu'); return; }
+    if (eLB || eL) stepSkin(-1); if (eRB || eR) stepSkin(1);
+    return;
+  }
+  if (state === 'over') { if (eB) { state = 'menu'; jumpPressed = false; } if (eX) { jumpPressed = false; shareResult(); } return; }
+  if (state === 'pause') { if (eStart || eB) togglePause(); if (eY) openAch('pause'); if (eLB || eL) stepSkin(-1); if (eRB || eR) stepSkin(1); return; }
+  if (state === 'play' && eStart) togglePause();
+}
+addEventListener('gamepadconnected', () => { gp.on = true; });
+addEventListener('gamepaddisconnected', () => { gp.on = false; });
+// автопауза, если окно потеряло фокус или вкладка скрыта
+const autoPause = () => { if (state === 'play') togglePause(); };
+addEventListener('blur', autoPause); document.addEventListener('visibilitychange', () => { if (document.hidden) autoPause(); });
+const inLeft  = () => keys.ArrowLeft  || keys.KeyA || tb.left || gp.left;
+const inRight = () => keys.ArrowRight || keys.KeyD || tb.right || gp.right;
+const inJumpHeld = () => keys.Space || keys.ArrowUp || keys.KeyW || keys.__tj || gp.jump;
 
 // Ориентация: не блокируем в манифесте (WebAPK с принудительным landscape не запускается на части прошивок),
 // а просим у системы после жеста пользователя. В браузерной вкладке запрос обычно отклоняется — это нормально.
@@ -679,7 +782,7 @@ const ACH = [
   { id: 'deaths_10',    t: 'Упорство',       d: 'Погибнуть 10 раз и вернуться',      f: (r, tot) => tot.deaths >= 10 },
   { id: 'score_666',    t: 'Княжулечка Тьмулички', d: 'Закончить забег ровно с 666 очками', f: (r, tot, end) => end && Math.floor(r.score) === 666 },
   { id: 'score_6666',   t: 'Княжна Тьмы',    d: '6666 очков за один забег',          f: r => r.score >= 6666 },
-  { id: 'crystals_666', t: 'Три шестёрки',   d: '666 кристаллов за всё время',       f: (r, tot) => tot.crystals + r.crystals >= 666 },
+  { id: 'crystals_666', t: 'Три шестёрки',   d: '666 кристаллов · огонёк-спутник',       f: (r, tot) => tot.crystals + r.crystals >= 666 },
   { id: 'last_heart_60',t: 'Не сегодня',     d: '60 секунд на последнем сердце',     f: r => r.p.hp === 1 && r.hp1T >= 0 && r.t - r.hp1T >= 60 },
   { id: 'combo_40',     t: 'Без промаха',    d: 'Комбо 40 — множитель ×3',           f: r => r.comboMax >= 40 },
   // скрытые: условия и иконки не показываются, пока не открыты
@@ -806,9 +909,12 @@ function closeAch() { state = achFrom; jumpPressed = false; }
 function drawAchButton(b) {
   const n = Object.keys(unlocked).filter(id => ACH.some(a => a.id === id)).length;
   panel(b.x, b.y, b.w, b.h);
-  ctx.textAlign = 'center'; ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#ffe680';
-  ctx.fillText(`★ Достижения  ${n}/${ACH.length}`, b.x + b.w / 2, b.y + 27);
+  ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#ffe680';
+  if (b === ACH_BTN_PAUSE) { ctx.textAlign = 'center'; ctx.fillText(`★ Достижения  ${n}/${ACH.length}`, b.x + b.w / 2, b.y + 27); }
+  else iconLabel(b, '★', `Достижения  ${n}/${ACH.length}`);
 }
+// значок и подпись в фиксированных позициях: значки из разных шрифтов имеют разную ширину
+function iconLabel(b, icon, label) { ctx.textAlign = 'center'; ctx.fillText(icon, b.x + 24, b.y + 27); ctx.textAlign = 'left'; ctx.fillText(label, b.x + 42, b.y + 27); }
 function inBtn(p, b) { return p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h; }
 
 // ───────────────────────── УСИЛЕНИЯ ─────────────────────────
@@ -858,6 +964,23 @@ async function loadTiles(ext) {
   })));
 }
 // выбор набора для новой платформы: зоны по 2–5 платформ, доступные наборы растут со временем
+// декор платформ и потолка: детерминированно от генератора забега (в вызове дня одинаково у всех)
+function decorate(p, r) {
+  const spk = p.spikes[0];
+  const free = x => !spk || x + 40 < spk.x || x > spk.x + spk.w;
+  if (p.w >= 160 && p.y <= LEVELS[1] && r() < 0.45) p.deco.push({ t: 'banner', x: p.x + 24 + r() * (p.w - 60) }); // стяг снизу (не на нижнем уровне — там лава)
+  if (p.w >= 128 && r() < 0.3) { const x = p.x + 16 + r() * (p.w - 40); if (free(x)) p.deco.push({ t: 'torch', x, ph: r() * 6 }); }
+  if (p.w >= 224 && r() < 0.18) { const x = p.x + 30 + r() * (p.w - 70); if (free(x)) p.deco.push({ t: 'lantern', x }); }
+  if (p.w >= 192 && r() < 0.12) { const x = p.x + 20 + r() * (p.w - 60); if (free(x)) p.deco.push({ t: 'sign', x }); }
+  // потолок-свод зонами: над несколькими платформами подряд, со свисающими цепями
+  if (G.ceilLeft > 0) { G.ceilLeft--; p.ceil = true; }
+  else if (r() < 0.22) { G.ceilLeft = 1 + Math.floor(r() * 3); p.ceil = true; }
+  if (p.ceil) {
+    p.chains = []; for (let x = p.x + 20 + r() * 60; x < p.x + p.w; x += 90 + r() * 120) p.chains.push({ x, len: 60 + r() * 100 });
+    if (G.lastCeil && G.lastCeil.ceil) G.lastCeil.ceilTo = p.x; // свод тянется через зазор до следующей платформы со сводом
+  }
+  G.lastCeil = p;
+}
 function pickTileset(r) {
   const avail = TILESETS.slice(0, 1 + Math.min(TILESETS.length - 1, Math.floor(G.t / TILE_UNLOCK_T)));
   if (G.zoneLeft > 0 && avail.includes(G.zoneTile)) { G.zoneLeft--; return G.zoneTile; }
@@ -867,9 +990,9 @@ function pickTileset(r) {
 
 // ───────────────────────── СКИНЫ ─────────────────────────
 const SKINS = {
-  default: { name: 'Хеллка',      dir: 'assets',            unlock: null },
-  dark:    { name: 'Княжна Тьмы', dir: 'assets/skins/dark', unlock: 'score_2500' }, // открывается за «Легенду ада»
-  queen:   { name: 'Владычица Чертовска', dir: 'assets/skins/queen', unlock: 'score_6666' }, // за «Княжну Тьмы»
+  default: { name: 'Хеллка',      dir: 'assets',            unlock: null, col: '#ff8a4a', wisp: '#ffb03a' },
+  dark:    { name: 'Княжна Тьмы', dir: 'assets/skins/dark', unlock: 'score_2500', col: '#b04ad8', wisp: '#5ad8ff' }, // открывается за «Легенду ада»
+  queen:   { name: 'Владычица Чертовска', dir: 'assets/skins/queen', unlock: 'score_6666', col: '#ffd23a', wisp: '#ff5a1e' }, // за «Княжну Тьмы»
 };
 const SKIN_KEYS = ['player_run', 'player_jump', 'player_dead', 'player_hurt', 'portrait'];
 const SKIN_IMG = {};
@@ -980,7 +1103,7 @@ function dailyBest() { return DAILY.date === dailyKey() ? DAILY.best : 0; }
 function startGame(m) {
   mode = m || mode;
   G = {
-    t: 0, camX: 0, speed: 200, score: 0, crystals: 0, coins: 0, dist: 0, stomps: 0, hits: 0, achT: 0, missedCrystals: 0, gapCrystals: 0, hp1Score: -1, hp1T: -1, lavaDeath: false, zoneTile: 'tile', zoneLeft: 0, pw: { magnet: 0, x2: 0, fire: 0, shield: false }, shots: [], combo: 0, comboMax: 0, comboFlash: 0,
+    t: 0, camX: 0, speed: 200, score: 0, crystals: 0, coins: 0, dist: 0, stomps: 0, hits: 0, achT: 0, missedCrystals: 0, gapCrystals: 0, hp1Score: -1, hp1T: -1, lavaDeath: false, zoneTile: 'tile', zoneLeft: 0, ceilLeft: 0, lastCeil: null, pw: { magnet: 0, x2: 0, fire: 0, shield: false }, shots: [], combo: 0, comboMax: 0, comboFlash: 0,
     plats: [], items: [], enemies: [], parts: [], texts: [],
     genX: 0, lastY: LEVELS[0], rnd: mulberry(mode === 'daily' ? dailySeed() : (Date.now() & 0xffff)), mode,
     p: { x: 120, y: 300, w: 30, h: 66, vx: 0, vy: 0, ground: false, jumps: 0, hp: 5, inv: 0, anim: 0, face: 1, dead: false, deadT: 0 },
@@ -996,7 +1119,9 @@ function togglePause() {
   else if (state === 'pause') { state = 'play'; MUSIC.resume(); }
 }
 
-function addPlat(x, y, w, tile) { const p = { x, y, w, h: 96, spikes: [], tile: tile || 'tile' }; G.plats.push(p); return p; }
+const PLAT_H = 64;
+const CEIL_Y = 44; // нижняя граница свода для коллизии (кончики сталактитов) // платформа: верхняя плитка 48 + нижняя кромка 16 (как на концепте, тоньше)
+function addPlat(x, y, w, tile) { const p = { x, y, w, h: PLAT_H, spikes: [], tile: tile || 'tile', deco: [] }; G.plats.push(p); return p; }
 
 // Генерация мира вперёд от камеры
 function generate() {
@@ -1015,6 +1140,7 @@ function generate() {
     const len = 32 * (5 + (r() * (10 + Math.min(8, G.t / 20))) | 0);
     const x = G.genX + gap;
     const p = addPlat(x, y, len, pickTileset(r));
+    decorate(p, r);
     // шипы: только на длинных, кусок 2 клетки, не у краёв
     if (len >= 32 * 9 && r() < 0.35 + G.t / 300) {
       const sx = x + 32 * (3 + (r() * (len / 32 - 6)) | 0);
@@ -1063,6 +1189,9 @@ function generate() {
 function addText(x, y, s, col) { G.texts.push({ x, y, s, col, t: 0 }); }
 function burst(x, y, col, n = 10, spd = 200) {
   for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = spd * (0.3 + Math.random()); G.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 100, col, t: 0, life: 0.4 + Math.random() * 0.4 }); }
+}
+function landDust(p, n) {
+  for (let i = 0; i < n; i++) G.parts.push({ x: p.x + Math.random() * p.w, y: p.y + p.h, vx: (Math.random() - 0.5) * 160 - G.speed * 0.2, vy: -40 - Math.random() * 60, col: '#8a7a80', t: 0, life: 0.3 + Math.random() * 0.3, s: 3 });
 }
 function hurt(p, kx) {
   if (p.inv > 0 || p.dead) return;
@@ -1145,10 +1274,18 @@ function update(dt) {
     const py0 = p.y; p.y += p.vy * dt; p.ground = false;
     for (const pl of g.plats) {
       if (p.x + p.w > pl.x + 2 && p.x < pl.x + pl.w - 2) {
-        if (p.vy >= 0 && py0 + p.h <= pl.y + 1 && p.y + p.h >= pl.y) { p.y = pl.y - p.h; p.vy = 0; p.ground = true; p.jumps = 0; }
+        if (p.vy >= 0 && py0 + p.h <= pl.y + 1 && p.y + p.h >= pl.y) { if (p.vy > 350) landDust(p, Math.min(10, p.vy / 80)); p.y = pl.y - p.h; p.vy = 0; p.ground = true; p.jumps = 0; }
         else if (p.vy < 0 && py0 >= pl.y + pl.h && p.y < pl.y + pl.h) { p.y = pl.y + pl.h; p.vy = 0; }
       }
     }
+    // потолок-свод: голова упирается в сталактиты
+    if (p.vy < 0 && p.y < CEIL_Y) {
+      for (const pl of g.plats) if (pl.ceil && p.x + p.w > pl.x && p.x < (pl.ceilTo || pl.x + pl.w)) {
+        p.y = CEIL_Y; p.vy = 0; if (!p.bonk) { p.bonk = true; SFX.stomp(); for (let i = 0; i < 5; i++) g.parts.push({ x: p.x + Math.random() * p.w, y: CEIL_Y, vx: (Math.random() - 0.5) * 80, vy: 40 + Math.random() * 60, col: '#8a7a80', t: 0, life: 0.3, s: 3 }); }
+        break;
+      }
+    }
+    if (p.vy >= 0) p.bonk = false;
     // "раздавлен": упёрлись в стенку и одновременно в левый край экрана
     if (p.x <= minX + 0.5) for (const pl of g.plats) if (p.x + p.w > pl.x + 1 && p.x < pl.x + pl.w && p.y + p.h > pl.y + 8 && p.y < pl.y + pl.h) die();
     // шипы
@@ -1157,6 +1294,13 @@ function update(dt) {
     // лава
     if (p.y + p.h > LAVA_Y + 20) { burst(p.x + p.w / 2, LAVA_Y, '#ffb03a', 20, 260); p.hp = 0; G.lavaDeath = true; die(); }
     p.anim += dt * (8 + g.speed / 60);
+    // косметика: пыль из-под ног на земле, огонёк-спутник летит за спиной
+    g.dustAcc = (g.dustAcc || 0) + dt * (4 + g.speed / 80);
+    if (p.ground && g.dustAcc >= 1) { g.dustAcc = 0; g.parts.push({ x: p.x + 4, y: p.y + p.h - 2, vx: -g.speed * 0.35 - 30, vy: -20 - Math.random() * 30, col: SKINS[skin].col, t: 0, life: 0.35 + Math.random() * 0.25, s: 3 }); }
+    if (!g.wisp && unlocked.crystals_666) g.wisp = { x: p.x - 30, y: p.y + 10, ph: 0 }; // огонёк-спутник — награда за «Три шестёрки»
+    if (g.wisp) { const wz = g.wisp, tx = p.x - 34 + Math.sin(g.t * 2.1) * 6, ty = p.y + 8 + Math.sin(g.t * 3.3) * 10;
+    wz.x += (tx - wz.x) * Math.min(1, dt * 6); wz.y += (ty - wz.y) * Math.min(1, dt * 6); wz.ph += dt;
+    if (Math.random() < dt * 12) g.parts.push({ x: wz.x, y: wz.y, vx: -g.speed * 0.5, vy: -30 - Math.random() * 40, col: SKINS[skin].wisp, t: 0, life: 0.4 + Math.random() * 0.3, s: 2 }); }
   }
 
   // ── враги ──
@@ -1258,14 +1402,40 @@ function drawWorld() {
   for (const pl of g.plats) {
     const sx = pl.x - cx; if (sx > W || sx + pl.w < 0) continue;
     const tk = IMG[pl.tile] ? pl.tile : 'tile', T = MANIFEST[tk].w;
-    ctx.save(); ctx.beginPath(); ctx.rect(sx, pl.y, pl.w, pl.h); ctx.clip();
+    // потолок над платформой: кладка со сталактитами и свисающие цепи (декор, без коллизий)
+    if (pl.ceil) {
+      const cm = MANIFEST.ceiling, cw = cm.w;
+      const cend = (pl.ceilTo || pl.x + pl.w) - cx;
+      // цепи — фоновые: приглушены, начинаются под кладкой и рисуются позади свода
+      const chm = MANIFEST.deco_chain; // спрайт цепи затемнён при сборке, прозрачность не нужна
+      for (const ch of pl.chains) for (let y = 12; y < 12 + ch.len; y += chm.h) spr('deco_chain', 0, ch.x - cx, y, false, chm.w, Math.min(chm.h, 12 + ch.len - y));
+      for (let x = sx; x < cend; x += cw) spr('ceiling', 0, x, 0, false, Math.min(cw, cend - x), cm.h);
+    }
+    // базовая кладка в воздухе без стяга: снизу свисают сталактиты (нижняя часть тайла потолка)
+    const stal = tk === 'tile' && pl.y <= LEVELS[1] && !pl.deco.some(d => d.t === 'banner') && IMG.ceiling;
+    ctx.save(); ctx.beginPath(); ctx.rect(sx, pl.y, pl.w, stal ? T : pl.h); ctx.clip();
+    const im = IMG[tk], fw = im.width / MANIFEST[tk].frames, fh = im.height;
     for (let x = 0; x < pl.w; x += T) {
       spr(tk, 0, sx + x, pl.y);
-      for (let y = T; y < pl.h; y += T) spr(tk, 1, sx + x, pl.y + y);
+      // нижняя кромка: нижняя часть плитки тела, чтобы платформа читалась тонкой
+      if (!stal) ctx.drawImage(im, fw, fh * (1 - (pl.h - T) / T), fw, fh * (pl.h - T) / T, sx + x, pl.y + T, T, pl.h - T);
     }
     ctx.restore();
+    if (stal) {
+      const ci = IMG.ceiling, cm = MANIFEST.ceiling, skip = Math.round(ci.height * 0.3); // верхнюю треть кладки потолка пропускаем
+      ctx.save(); ctx.beginPath(); ctx.rect(sx, pl.y + T, pl.w, cm.h); ctx.clip();
+      for (let x = 0; x < pl.w; x += cm.w) ctx.drawImage(ci, 0, skip, ci.width, ci.height - skip, sx + x, pl.y + T, cm.w, cm.h - skip);
+      ctx.restore();
+    }
+    // декор
+    for (const d of pl.deco) {
+      const dx = d.x - cx;
+      if (d.t === 'banner') spr('deco_banner', 0, dx, pl.y + pl.h - 2);
+      else if (d.t === 'torch') { spr('deco_torch', (g.t * 8 + d.ph) | 0, dx, pl.y - MANIFEST.deco_torch.h + 2); if (Math.random() < 0.15) g.parts.push({ x: d.x + 10, y: pl.y - MANIFEST.deco_torch.h + 6, vx: -g.speed * 0.15, vy: -40 - Math.random() * 40, col: '#ffb03a', t: 0, life: 0.4, s: 2 }); }
+      else if (d.t === 'lantern') { const lm = MANIFEST.deco_lantern, lx = dx + lm.w / 2, ly = pl.y - lm.h + lm.h * 0.2; ctx.globalAlpha = 0.75 + 0.15 * Math.sin(g.t * 6 + d.x); ctx.drawImage(LAMP_GLOW, lx - 60, ly - 60); ctx.globalAlpha = 1; spr('deco_lantern', 0, dx, pl.y - lm.h + 2); }
+      else if (d.t === 'sign') spr('deco_sign', 0, dx, pl.y - MANIFEST.deco_sign.h + 2);
+    }
     for (const s of pl.spikes) for (let x = s.x; x < s.x + s.w; x += 32) spr('spike', 0, x - cx, pl.y - MANIFEST.spike.h + 2, false, 32, MANIFEST.spike.h);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(sx, pl.y + 96, pl.w, 10);
   }
   for (const it of g.items) {
     if (it.got) continue; const sx = it.x - cx; if (sx > W || sx < -40) continue;
@@ -1310,7 +1480,12 @@ function drawWorld() {
     const m = MANIFEST[key];
     spr(key, frame, p.x - cx + p.w / 2 - m.w / 2, p.y + p.h - m.h + 2, false);
   }
-  for (const q of g.parts) { ctx.globalAlpha = 1 - q.t / q.life; ctx.fillStyle = q.col; ctx.fillRect(q.x - cx - 2, q.y - 2, 5, 5); }
+  for (const q of g.parts) { const sz = q.s || 5; ctx.globalAlpha = 1 - q.t / q.life; ctx.fillStyle = q.col; ctx.fillRect(q.x - cx - sz / 2, q.y - sz / 2, sz, sz); }
+  if (g.wisp && !p.dead) { // огонёк-спутник: ядро + мягкое свечение
+    const wx = g.wisp.x - cx, wy = g.wisp.y, r = 5 + Math.sin(g.wisp.ph * 8) * 1.2;
+    ctx.globalAlpha = 0.35; ctx.fillStyle = SKINS[skin].wisp; ctx.beginPath(); ctx.arc(wx, wy, r * 2.2, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(wx, wy, r, 0, 7); ctx.fill(); ctx.fillStyle = '#fff8e0'; ctx.beginPath(); ctx.arc(wx - 1, wy - 1, r * 0.45, 0, 7); ctx.fill();
+  }
   ctx.globalAlpha = 1;
   ctx.font = 'bold 18px monospace'; ctx.textAlign = 'left';
   for (const t of g.texts) { ctx.globalAlpha = 1 - t.t / 0.8; ctx.fillStyle = t.col; ctx.fillText(t.s, t.x - cx, t.y); }
@@ -1360,6 +1535,11 @@ function drawHud() {
   if (state === 'pause') { ctx.beginPath(); ctx.moveTo(W - 52, 28); ctx.lineTo(W - 28, 41); ctx.lineTo(W - 52, 54); ctx.fill(); }
   else { ctx.fillRect(W - 54, 28, 8, 26); ctx.fillRect(W - 38, 28, 8, 26); }
   if (g.hudFlash > 0) { ctx.fillStyle = `rgba(255,0,0,${g.hudFlash * 0.5})`; ctx.fillRect(0, 0, W, H); }
+  if (g.p.hp === 1 && !g.p.dead) { // последнее сердце: пульсирующая красная виньетка по краям
+    const a = 0.18 + 0.12 * Math.sin(g.t * 5);
+    const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, H * 0.85);
+    vg.addColorStop(0, 'rgba(180,0,20,0)'); vg.addColorStop(1, `rgba(180,0,20,${a})`); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  }
 }
 // Стилизованный заголовок: рукописный шрифт, градиент, обводка, рожки и хвостик, лёгкое покачивание
 function drawTitle(cx, cy, size, t) {
@@ -1415,11 +1595,11 @@ function drawMenu(t) {
   drawTitle(W / 2, 148, 96, t);
   centerText('Пробежка по Чертовску', 192, 20, '#f0c0c0', false);
   drawModeButtons();
-  centerText('← → двигаться   •   пробел / ↑ прыжок (двойной)   •   P пауза   •   M звук', 426, 12, '#d0b0b8', false);
+  centerText(gp.on ? '🎮 стик — движение   •   A прыжок   •   Start пауза   •   X вызов дня   •   Y достижения   •   LB/RB скин' : '← → двигаться   •   пробел / ↑ прыжок (двойной)   •   P пауза   •   M звук', 426, 12, gp.on ? '#8fc8ff' : '#d0b0b8', false);
   drawSliders(444);
   if (best) centerText('рекорд: ' + best, 216, 17, '#ffb0a8');
   drawAchButton(ACH_BTN);
-  panel(STATS_BTN.x, STATS_BTN.y, STATS_BTN.w, STATS_BTN.h); ctx.textAlign = 'left'; ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#ffe680'; ctx.fillText('≡ Статистика', STATS_BTN.x + 14, STATS_BTN.y + 27);
+  panel(STATS_BTN.x, STATS_BTN.y, STATS_BTN.w, STATS_BTN.h); ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#ffe680'; iconLabel(STATS_BTN, '☰', 'Статистика');
   drawAuthor();
   drawTwitch(t, 1 / 60);
 }
@@ -1510,6 +1690,7 @@ let last = 0, acc = 0, menuT = 0;
 function loop(ts) {
   requestAnimationFrame(loop);
   let dt = Math.min(0.05, (ts - last) / 1000 || 0); last = ts;
+  pollGamepad();
   if (state === 'menu' || state === 'stats' || (state === 'ach' && achFrom === 'menu')) {
     menuT += dt; drawMenu(menuT);
     if (state === 'ach') { drawAchScreen(); jumpPressed = false; return; }
@@ -1554,5 +1735,5 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {}));
 }
 // отладочный хук (для автотестов из консоли)
-window.HELLKA = { get G() { return G; }, get state() { return state; }, start: startGame, jump: () => { jumpPressed = true; }, step: dt => { if (state === 'play') update(dt); }, keys, tb, MUSIC, SFX_EL, ACH, unlocked, STATS, toasts, setState: v => { state = v; }, TWITCH, TILESETS, SPARKS, DAILY, dailyKey, renderShareCard, get mode() { return mode; }, SKINS, SKIN_IMG, applySkin, nextSkin, get skin() { return skin; } };
+window.HELLKA = { get G() { return G; }, get state() { return state; }, start: startGame, jump: () => { jumpPressed = true; }, step: dt => { if (state === 'play') update(dt); }, keys, tb, MUSIC, SFX_EL, ACH, unlocked, STATS, toasts, setState: v => { state = v; }, TWITCH, TILESETS, SPARKS, DAILY, dailyKey, renderShareCard, get mode() { return mode; }, pollGamepad, gp, SKINS, SKIN_IMG, applySkin, nextSkin, get skin() { return skin; } };
 })();

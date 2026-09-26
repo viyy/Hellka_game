@@ -1,5 +1,5 @@
 // Сгенерировано tools/build_assets.py — не править руками
-const CACHE = 'hellka-cf08e05fb1';
+const CACHE = 'hellka-b9306be34b';
 const FILES = [
 "./",
 "index.html",
@@ -15,8 +15,14 @@ const FILES = [
 "assets/bg_far.png",
 "assets/bg_mid.png",
 "assets/bg_sky.png",
+"assets/ceiling.png",
 "assets/coin.png",
 "assets/crystal.png",
+"assets/deco_banner.png",
+"assets/deco_chain.png",
+"assets/deco_lantern.png",
+"assets/deco_sign.png",
+"assets/deco_torch.png",
 "assets/fireball.png",
 "assets/heart.png",
 "assets/imp.png",

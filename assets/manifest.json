@@ -115,6 +115,36 @@
   "w": 28,
   "h": 18
  },
+ "deco_banner": {
+  "frames": 1,
+  "w": 29,
+  "h": 64
+ },
+ "deco_torch": {
+  "frames": 2,
+  "w": 22,
+  "h": 44
+ },
+ "deco_lantern": {
+  "frames": 1,
+  "w": 15,
+  "h": 80
+ },
+ "deco_sign": {
+  "frames": 1,
+  "w": 37,
+  "h": 52
+ },
+ "deco_chain": {
+  "frames": 1,
+  "w": 8,
+  "h": 32
+ },
+ "ceiling": {
+  "frames": 1,
+  "w": 48,
+  "h": 47
+ },
  "tile": {
   "frames": 2,
   "w": 48,

@@ -214,6 +214,35 @@ Pixel art power-up icon, round, single centered object: bold golden glyph "x2" w
 Pixel art power-up icon, round, single centered object: a fierce orange and yellow flame with a tiny grinning devil face inside it, thin near-black outline, warm glow. Transparent background, no frame, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
 ```
 
+## Декор мира
+
+Платформы стали тоньше (64 px: плитка-верх и нижняя кромка), под ними висят стяги, на них стоят факелы, фонари и указатели, а над частью платформ идёт потолок-свод со сталактитами и свисающими цепями. Всё генерируется вместе с миром (в вызове дня одинаково у всех). Пока рисуется кодом; PNG кладутся в `assets_raw/deco/` с именами `banner`, `torch`, `lantern`, `sign`, `chain`, `ceiling`. Общий стиль тот же, что у тайлов: 16-bit, чёткие пиксели, прозрачный фон, без текста.
+
+### banner.png — стяг (вертикальный, висит под платформой, ~28×64 в игре)
+```
+Pixel art hanging banner for a hell castle, tall narrow vertical flag on a short dark wooden crossbar at the top, dark crimson cloth with a lighter highlight stripe, a small golden trident emblem in the middle, V-shaped cut at the bottom, slightly torn edges. 16-bit SNES style, crisp pixels, no anti-aliasing, transparent background, no text.
+```
+### torch.png — факел, 2 кадра рядом (пламя в двух фазах, ~20×44)
+```
+Pixel art sprite sheet, 2 frames in a single horizontal row, same size: a small wall torch, dark wooden handle with an iron ring, bright orange flame with a yellow core; frame 1 flame leaning left, frame 2 flame leaning right. 16-bit SNES style, crisp pixels, no anti-aliasing, transparent background, no text.
+```
+### lantern.png — фонарь-столб (~30×80)
+```
+Pixel art gothic street lantern on a thin black iron post with a small base, square lantern head with a warm glowing orange light inside and a pointed cap, hell castle style. 16-bit SNES style, crisp pixels, no anti-aliasing, transparent background, no text.
+```
+### sign.png — указатель (~44×52)
+```
+Pixel art wooden signpost: a short dark post with a weathered wooden board on top showing a bold red arrow pointing right, a few cracks in the wood. 16-bit SNES style, crisp pixels, no anti-aliasing, transparent background, no text.
+```
+### chain.png — звено цепи, повторяется вниз (~8×32)
+```
+Pixel art vertical iron chain segment, two dark gray links with lighter highlights, seamless when repeated vertically, narrow and tall. 16-bit SNES style, crisp pixels, no anti-aliasing, transparent background, no text.
+```
+### ceiling.png — потолок, бесшовная плитка (~48×64)
+```
+Pixel art seamless horizontally tileable cave ceiling tile: dark volcanic stone brick masonry on the upper part, jagged stalactites of the same dark stone hanging from the lower edge with small glowing lava drips, transparent below the stalactites. Must tile seamlessly left-to-right. 16-bit SNES style, crisp pixels, no anti-aliasing, dark purple-gray stone with crimson / orange accents, no text.
+```
+
 ## Наборы террейна
 
 Дополнительные плитки платформ лежат в `assets_raw/tiles/tile_<имя>.png` в том же формате, что базовая кладка (две плитки рядом на чёрном: верх с кромкой и тело). Сборка нарезает их в `assets/tiles/<имя>.png`. В игре каждая платформа получает набор случайно, зонами по 2–5 платформ подряд; базовая кладка доступна сразу, остальные подключаются по одному каждые 25 секунд забега в порядке: ember, gothic, bone, obsidian.
@@ -240,7 +269,7 @@ Pixel art power-up icon, round, single centered object: a fierce orange and yell
 | `deaths_10.png` | Упорство | 10 смертей суммарно |
 | `score_666.png` | Княжулечка Тьмулички | закончить забег ровно с 666 очками |
 | `score_6666.png` | Княжна Тьмы | 6666 очков за забег |
-| `crystals_666.png` | Три шестёрки | 666 кристаллов за всё время |
+| `crystals_666.png` | Три шестёрки | 666 кристаллов за всё время; открывает огонёк-спутника |
 | `last_heart_60.png` | Не сегодня | 60 секунд на последнем сердце |
 | `visit.png` | Заглянуть в гости (скрытое) | клик по бейджу канала во время эфира |
 | `lava_66.png` | Купание (скрытое) | 66 смертей в лаве суммарно |
