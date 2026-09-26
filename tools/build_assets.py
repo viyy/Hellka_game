@@ -258,13 +258,13 @@ por.save(os.path.join(OUT, 'portrait.png')); manifest['portrait'] = {'frames': 1
 
 # ── favicon из портрета ──
 src = Image.open(raw_named('avatar.png', 'eefea498')).convert('RGBA')
-w, h = src.size; m = int(min(w, h) * 0.86); src = src.crop(((w - m) // 2, (h - m) // 2 - m // 12, (w + m) // 2, (h + m) // 2 - m // 12))  # лицо крупнее
+w, h = src.size; m = min(w, h); src = src.crop(((w - m) // 2, (h - m) // 2, (w + m) // 2, (h + m) // 2))  # полный аватар с рамкой
 src.resize((180, 180), Image.LANCZOS).save(os.path.join(ROOT, 'apple-touch-icon.png'))
 src.resize((32, 32), Image.LANCZOS).save(os.path.join(ROOT, 'favicon-32.png'))
 src.resize((192, 192), Image.LANCZOS).save(os.path.join(ROOT, 'icon-192.png'))
 src.resize((512, 512), Image.LANCZOS).save(os.path.join(ROOT, 'icon-512.png'))
 # maskable: безопасная зона — центральные 80%, поэтому лицо уменьшаем и кладём на фон
-mk = Image.new('RGBA', (512, 512), (18, 6, 12, 255)); face = src.resize((410, 410), Image.LANCZOS); mk.paste(face, (51, 51), face)
+mk = Image.new('RGBA', (512, 512), (18, 6, 12, 255)); face = src.resize((352, 352), Image.LANCZOS); mk.paste(face, (80, 80), face)  # рамка целиком внутри круга
 mk.save(os.path.join(ROOT, 'icon-512-maskable.png'))
 src.resize((64, 64), Image.LANCZOS).save(os.path.join(ROOT, 'favicon.ico'), sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
 print('favicon.ico, favicon-32.png, apple-touch-icon.png, icon-192.png')
