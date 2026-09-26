@@ -78,6 +78,28 @@
   "w": 48,
   "h": 48
  },
+ "tiles": {
+  "bone": {
+   "frames": 2,
+   "w": 48,
+   "h": 48
+  },
+  "ember": {
+   "frames": 2,
+   "w": 48,
+   "h": 48
+  },
+  "gothic": {
+   "frames": 2,
+   "w": 48,
+   "h": 48
+  },
+  "obsidian": {
+   "frames": 2,
+   "w": 48,
+   "h": 48
+  }
+ },
  "lava": {
   "frames": 2,
   "w": 128,
@@ -107,6 +129,31 @@
   "frames": 1,
   "w": 40,
   "h": 40
+ },
+ "pw_heart": {
+  "frames": 1,
+  "w": 30,
+  "h": 30
+ },
+ "pw_shield": {
+  "frames": 1,
+  "w": 30,
+  "h": 30
+ },
+ "pw_magnet": {
+  "frames": 1,
+  "w": 30,
+  "h": 30
+ },
+ "pw_x2": {
+  "frames": 1,
+  "w": 30,
+  "h": 30
+ },
+ "pw_fire": {
+  "frames": 1,
+  "w": 30,
+  "h": 30
  },
  "portrait": {
   "frames": 1,

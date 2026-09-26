@@ -134,6 +134,37 @@ Pixel art square avatar icon, close-up of chibi anime devil girl "Hellka": long 
 
 Второй скин («Княжна Тьмы», тёмный образ) собирается из `assets_raw/dark_skin/`: GIF-ы бега (8 кадров), прыжка, удара и смерти из PixelLab плюс `avatar.png` для портрета. Скрипт ищет файлы по подстрокам `running`, `jump`, `punch`, `death`, `avatar` и кладёт результат в `assets/skins/dark/`. Перекраска волос и рожек к этому скину не применяется. Открывается за достижение «Легенда ада» (2500 очков), переключается кнопкой в меню и паузе или клавишей S.
 
+## Усиления (power-ups)
+
+Пять усилений появляются на платформах с 8-й секунды забега (шанс ~10% на платформу): сердце (+1 жизнь), щит (поглощает один удар), магнит (8 с, предметы летят к Хеллке), ×2 (10 с, все очки удваиваются), пламя (6 с, бесы сгорают от касания). Иконки: `assets_raw/powerups/<id>.png` с именами `heart`, `shield`, `magnet`, `x2`, `fire`; сборка обрежет и уменьшит до 30×30. Пока файлов нет, рисуются цветные кружки кодом.
+
+Общий стиль иконок (в каждом промпте): круглый значок, один объект по центру, тонкая тёмная обводка, прозрачный фон, без рамки, чтобы отличаться от иконок достижений.
+
+### heart.png
+```
+Pixel art power-up icon, round, single centered object: a bright red heart with a white highlight and a small golden sparkle, thin near-black outline, soft glow. Transparent background, no frame, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### shield.png
+```
+Pixel art power-up icon, round, single centered object: a glowing blue crystal shield with a small red devil horn emblem, thin near-black outline, soft blue glow. Transparent background, no frame, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### magnet.png
+```
+Pixel art power-up icon, round, single centered object: a classic horseshoe magnet in orange and dark gray with small red crystals and gold coins being pulled toward it, thin near-black outline. Transparent background, no frame, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### x2.png
+```
+Pixel art power-up icon, round, single centered object: bold golden glyph "x2" with a red devil tail curling from the 2, thin near-black outline, golden glow. Transparent background, no frame, 16-bit SNES style, crisp pixels, no anti-aliasing.
+```
+### fire.png
+```
+Pixel art power-up icon, round, single centered object: a fierce orange and yellow flame with a tiny grinning devil face inside it, thin near-black outline, warm glow. Transparent background, no frame, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+
+## Наборы террейна
+
+Дополнительные плитки платформ лежат в `assets_raw/tiles/tile_<имя>.png` в том же формате, что базовая кладка (две плитки рядом на чёрном: верх с кромкой и тело). Сборка нарезает их в `assets/tiles/<имя>.png`. В игре каждая платформа получает набор случайно, зонами по 2–5 платформ подряд; базовая кладка доступна сразу, остальные подключаются по одному каждые 25 секунд забега в порядке: ember, gothic, bone, obsidian.
+
 ## Иконки достижений
 
 Клади PNG в `assets_raw/ach/` с именами из таблицы, потом `python tools/build_assets.py`: скрипт обрежет по прозрачности, выровняет в квадрат и уменьшит до 64×64 в `assets/ach/`. Пока файла нет, игра рисует заглушку с первой буквой названия.

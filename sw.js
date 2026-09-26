@@ -1,5 +1,5 @@
 // Сгенерировано tools/build_assets.py — не править руками
-const CACHE = 'hellka-13e6bdd06c';
+const CACHE = 'hellka-37ee87b8f4';
 const FILES = [
 "./",
 "index.html",
@@ -30,6 +30,11 @@ const FILES = [
 "assets/player_jump.png",
 "assets/player_run.png",
 "assets/portrait.png",
+"assets/pw_fire.png",
+"assets/pw_heart.png",
+"assets/pw_magnet.png",
+"assets/pw_shield.png",
+"assets/pw_x2.png",
 "assets/spike.png",
 "assets/tile.png",
 "assets/title.png",
@@ -74,7 +79,11 @@ const FILES = [
 "assets/skins/dark/player_hurt.png",
 "assets/skins/dark/player_jump.png",
 "assets/skins/dark/player_run.png",
-"assets/skins/dark/portrait.png"
+"assets/skins/dark/portrait.png",
+"assets/tiles/bone.png",
+"assets/tiles/ember.png",
+"assets/tiles/gothic.png",
+"assets/tiles/obsidian.png"
 ];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

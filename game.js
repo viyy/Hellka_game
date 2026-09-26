@@ -28,6 +28,11 @@ const MANIFEST = {
   portrait:    { frames: 1, w: 56, h: 56 },
   title:       { frames: 1, w: 560, h: 150 }, // сгенерированный логотип (необязательно)
   twitch:      { frames: 1, w: 40, h: 40 },   // иконка бейджа канала (необязательно)
+  pw_heart:    { frames: 1, w: 30, h: 30 },   // усиления (assets/pw_*.png, иначе заглушки)
+  pw_shield:   { frames: 1, w: 30, h: 30 },
+  pw_magnet:   { frames: 1, w: 30, h: 30 },
+  pw_x2:       { frames: 1, w: 30, h: 30 },
+  pw_fire:     { frames: 1, w: 30, h: 30 },
 };
 const IMG = {};
 
@@ -300,6 +305,13 @@ function makeTwitchIcon() {
   g.fillStyle = '#fff'; g.fillRect(16, 12, 4, 10); g.fillRect(24, 12, 4, 10); // «глаза» как у логотипа
   return c;
 }
+function makePwIcon(col, glyph) {
+  const c = document.createElement('canvas'); c.width = 30; c.height = 30; const g = c.getContext('2d');
+  g.fillStyle = '#1a0408'; g.beginPath(); g.arc(15, 15, 14, 0, 7); g.fill();
+  g.fillStyle = col; g.beginPath(); g.arc(15, 15, 11, 0, 7); g.fill();
+  g.fillStyle = '#fff'; g.font = 'bold 14px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(glyph, 15, 16);
+  return c;
+}
 function makePortrait() {
   const c = document.createElement('canvas'); c.width = 56; c.height = 56;
   const g = c.getContext('2d');
@@ -328,6 +340,11 @@ function fallback(key) {
     case 'portrait':    return makePortrait();
     case 'title':       return null; // нет файла — заголовок рисуется процедурно (drawTitle)
     case 'twitch':      return makeTwitchIcon();
+    case 'pw_heart':    return makePwIcon('#ff3b5c', '♥');
+    case 'pw_shield':   return makePwIcon('#4fa3ff', '◈');
+    case 'pw_magnet':   return makePwIcon('#ff8a2a', 'U');
+    case 'pw_x2':       return makePwIcon('#ffd23a', '×2');
+    case 'pw_fire':     return makePwIcon('#ff5a1e', '♦');
   }
 }
 async function loadAssets() {
@@ -348,6 +365,7 @@ async function loadAssets() {
     im.src = `assets/${key}.png`;
   })));
   await loadSkins(ext);
+  await loadTiles(ext);
 }
 // рисует кадр frame спрайта key в логическом размере из манифеста
 function spr(key, frame, x, y, flip, w, h) {
@@ -698,6 +716,50 @@ function drawAchButton(b) {
 }
 function inBtn(p, b) { return p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h; }
 
+// ───────────────────────── УСИЛЕНИЯ ─────────────────────────
+const POWERUPS = {
+  heart:  { name: 'СЕРДЦЕ',  col: '#ff3b5c', weight: 20, dur: 0 },
+  shield: { name: 'ЩИТ',     col: '#4fa3ff', weight: 25, dur: 0 },   // держится до удара
+  magnet: { name: 'МАГНИТ',  col: '#ff8a2a', weight: 25, dur: 8 },
+  x2:     { name: 'ОЧКИ ×2', col: '#ffd23a', weight: 20, dur: 10 },
+  fire:   { name: 'ПЛАМЯ',   col: '#ff5a1e', weight: 10, dur: 6 },
+};
+const PW_CHANCE = 0.10, PW_FROM_T = 8; // шанс на платформу и с какой секунды появляются
+function pickPowerup(r) {
+  const tot = Object.values(POWERUPS).reduce((a, p) => a + p.weight, 0); let v = r() * tot;
+  for (const [k, p] of Object.entries(POWERUPS)) { v -= p.weight; if (v <= 0) return k; }
+  return 'heart';
+}
+function addScore(n) { G.score += n * (G.pw.x2 > 0 ? 2 : 1); return n * (G.pw.x2 > 0 ? 2 : 1); }
+function applyPowerup(k, it) {
+  const p = G.p, pw = POWERUPS[k];
+  if (k === 'heart') { if (p.hp < 5) p.hp++; }
+  else if (k === 'shield') G.pw.shield = true;
+  else G.pw[k] = pw.dur;
+  SFX.crystal(); burst(it.x + 15, it.y + 15, pw.col, 14, 180); addText(it.x - 10, it.y - 12, pw.name, pw.col); G.hudFlash = 0;
+}
+
+// ───────────────────────── НАБОРЫ ТЕРРЕЙНА ─────────────────────────
+// 'tile' — базовая кладка; остальные из assets/tiles/*.png. Порядок = порядок появления по ходу забега.
+const TILESETS = ['tile'];
+const TILE_UNLOCK_T = 25; // каждые N секунд забега становится доступен следующий набор
+async function loadTiles(ext) {
+  const ms = (ext && ext.tiles) || {};
+  const order = ['ember', 'gothic', 'bone', 'obsidian'].filter(n => ms[n]).concat(Object.keys(ms).filter(n => !['ember', 'gothic', 'bone', 'obsidian'].includes(n)));
+  await Promise.all(order.map(n => new Promise(res => {
+    const im = new Image();
+    im.onload = () => { const key = 'tile_' + n; IMG[key] = im; MANIFEST[key] = { frames: ms[n].frames, w: im.width / ms[n].frames, h: im.height }; TILESETS.push(key); res(); };
+    im.onerror = () => res(); im.src = `assets/tiles/${n}.png`;
+  })));
+}
+// выбор набора для новой платформы: зоны по 2–5 платформ, доступные наборы растут со временем
+function pickTileset(r) {
+  const avail = TILESETS.slice(0, 1 + Math.min(TILESETS.length - 1, Math.floor(G.t / TILE_UNLOCK_T)));
+  if (G.zoneLeft > 0 && avail.includes(G.zoneTile)) { G.zoneLeft--; return G.zoneTile; }
+  G.zoneTile = avail[Math.floor(r() * avail.length)]; G.zoneLeft = 1 + Math.floor(r() * 4);
+  return G.zoneTile;
+}
+
 // ───────────────────────── СКИНЫ ─────────────────────────
 const SKINS = {
   default: { name: 'Хеллка',      dir: 'assets',            unlock: null },
@@ -804,7 +866,7 @@ function drawAuthor() {
 
 function startGame() {
   G = {
-    t: 0, camX: 0, speed: 200, score: 0, crystals: 0, coins: 0, dist: 0, stomps: 0, hits: 0, achT: 0, missedCrystals: 0, gapCrystals: 0, hp1Score: -1, hp1T: -1, lavaDeath: false,
+    t: 0, camX: 0, speed: 200, score: 0, crystals: 0, coins: 0, dist: 0, stomps: 0, hits: 0, achT: 0, missedCrystals: 0, gapCrystals: 0, hp1Score: -1, hp1T: -1, lavaDeath: false, zoneTile: 'tile', zoneLeft: 0, pw: { magnet: 0, x2: 0, fire: 0, shield: false },
     plats: [], items: [], enemies: [], parts: [], texts: [],
     genX: 0, lastY: LEVELS[0], rnd: mulberry(Date.now() & 0xffff),
     p: { x: 120, y: 300, w: 30, h: 66, vx: 0, vy: 0, ground: false, jumps: 0, hp: 5, inv: 0, anim: 0, face: 1, dead: false, deadT: 0 },
@@ -820,7 +882,7 @@ function togglePause() {
   else if (state === 'pause') { state = 'play'; MUSIC.resume(); }
 }
 
-function addPlat(x, y, w) { const p = { x, y, w, h: 96, spikes: [] }; G.plats.push(p); return p; }
+function addPlat(x, y, w, tile) { const p = { x, y, w, h: 96, spikes: [], tile: tile || 'tile' }; G.plats.push(p); return p; }
 
 // Генерация мира вперёд от камеры
 function generate() {
@@ -838,7 +900,7 @@ function generate() {
     const y = LEVELS[ni];
     const len = 32 * (5 + (r() * (10 + Math.min(8, G.t / 20))) | 0);
     const x = G.genX + gap;
-    const p = addPlat(x, y, len);
+    const p = addPlat(x, y, len, pickTileset(r));
     // шипы: только на длинных, кусок 2 клетки, не у краёв
     if (len >= 32 * 9 && r() < 0.35 + G.t / 300) {
       const sx = x + 32 * (3 + (r() * (len / 32 - 6)) | 0);
@@ -855,6 +917,8 @@ function generate() {
     } else { // кристаллы над пропастью (риск/награда)
       for (let i = 0; i < 3; i++) G.items.push({ t: 'crystal', gap: true, x: G.genX + gap * 0.5 - 40 + i * 34, y: y - 130 - i * 4, w: 24, h: 34, ph: i });
     }
+    // усиление: редко, парит над платформой
+    if (G.t >= PW_FROM_T && r() < PW_CHANCE) G.items.push({ t: 'pw', kind: pickPowerup(r), x: x + 30 + r() * Math.max(10, len - 90), y: y - 100 - r() * 40, w: 30, h: 30, ph: r() * 6 });
     // бесы
     if (len >= 32 * 7 && r() < 0.3 + Math.min(0.5, G.t / 120)) {
       const spk = p.spikes[0];
@@ -879,6 +943,10 @@ function burst(x, y, col, n = 10, spd = 200) {
 }
 function hurt(p, kx) {
   if (p.inv > 0 || p.dead) return;
+  if (G.pw.shield) { // щит: удар поглощён, без потери сердца
+    G.pw.shield = false; p.inv = 0.8; p.vy = -300; SFX.stomp(); G.shake = 0.2;
+    burst(p.x + p.w / 2, p.y + p.h / 2, '#4fa3ff', 16, 200); addText(p.x - 10, p.y - 14, 'ЩИТ!', '#8fc8ff'); return;
+  }
   p.hp--; p.inv = 1.6; p.vy = -420; p.vx = kx; G.shake = 0.35; G.hudFlash = 0.4; G.hits++;
   if (p.hp === 1) { G.hp1Score = G.score; G.hp1T = G.t; } // «Феникс» и «Не сегодня»: с момента последнего сердца
   SFX.hurt(); burst(p.x + p.w / 2, p.y + p.h / 2, '#ff4040', 12);
@@ -899,7 +967,8 @@ function update(dt) {
   g.speed = Math.min(560, 200 + g.t * 2.2 + Math.pow(g.t, 1.35) * 0.5);
   g.camX += g.speed * dt;
   g.dist += g.speed * dt;
-  g.score += g.speed * dt * 0.02; // очки за дистанцию
+  addScore(g.speed * dt * 0.02); // очки за дистанцию
+  for (const k of ['magnet', 'x2', 'fire']) if (g.pw[k] > 0) g.pw[k] = Math.max(0, g.pw[k] - dt);
   if (g.shake > 0) g.shake -= dt;
   if (!p.dead) { g.achT += dt; if (g.achT >= 0.25) { g.achT = 0; checkAch(false); } }
   MUSIC.update(Math.max(0, Math.min(1, (g.speed / 200 - 1.5) / 0.6)), dt);
@@ -970,9 +1039,12 @@ function update(dt) {
     if (e.x < e.px) { e.x = e.px; e.vx = Math.abs(e.vx); }
     if (e.x + e.w > e.px + e.pw) { e.x = e.px + e.pw - e.w; e.vx = -Math.abs(e.vx); }
     if (!p.dead && p.x + p.w - 6 > e.x && p.x + 6 < e.x + e.w && p.y + p.h > e.y && p.y < e.y + e.h) {
-      if (p.vy > 0 && p.y + p.h - p.vy * dt <= e.y + 12) {
-        e.dead = true; p.vy = -JUMP_V * 0.7; p.jumps = 1; g.score += 25; g.stomps++; SFX.stomp();
-        burst(e.x + e.w / 2, e.y + e.h / 2, '#d8322a', 14); addText(e.x, e.y - 10, '+25', '#ffb0a8');
+      if (g.pw.fire > 0) { // пламя: бес сгорает от касания
+        e.dead = true; g.stomps++; const n = addScore(25); SFX.stomp();
+        burst(e.x + e.w / 2, e.y + e.h / 2, '#ff8a1e', 18, 220); addText(e.x, e.y - 10, '+' + n, '#ffb03a');
+      } else if (p.vy > 0 && p.y + p.h - p.vy * dt <= e.y + 12) {
+        e.dead = true; p.vy = -JUMP_V * 0.7; p.jumps = 1; const n = addScore(25); g.stomps++; SFX.stomp();
+        burst(e.x + e.w / 2, e.y + e.h / 2, '#d8322a', 14); addText(e.x, e.y - 10, '+' + n, '#ffb0a8');
       } else hurt(p, g.speed - 280);
     }
   }
@@ -980,10 +1052,16 @@ function update(dt) {
   for (const it of g.items) {
     if (it.got) continue;
     it.ph += dt * 3;
+    // магнит: предметы (кроме усилений) летят к Хеллке
+    if (g.pw.magnet > 0 && it.t !== 'pw' && !p.dead) {
+      const dx = (p.x + p.w / 2) - (it.x + it.w / 2), dy = (p.y + p.h / 2) - (it.y + it.h / 2), d = Math.hypot(dx, dy);
+      if (d < 220 && d > 1) { const v = 520 * dt / d; it.x += dx * v; it.y += dy * v; }
+    }
     if (!p.dead && p.x + p.w > it.x && p.x < it.x + it.w && p.y + p.h > it.y && p.y < it.y + it.h) {
       it.got = true;
-      if (it.t === 'crystal') { g.crystals++; g.score += 10; if (it.gap) g.gapCrystals++; SFX.crystal(); burst(it.x + 12, it.y + 17, '#ff5a5a', 8, 140); addText(it.x, it.y - 10, '+10', '#ff8a8a'); }
-      else { g.coins++; g.score += 5; SFX.coin(); burst(it.x + 12, it.y + 12, '#ffd23a', 6, 120); addText(it.x, it.y - 10, '+5', '#ffe680'); }
+      if (it.t === 'crystal') { g.crystals++; const n = addScore(10); if (it.gap) g.gapCrystals++; SFX.crystal(); burst(it.x + 12, it.y + 17, '#ff5a5a', 8, 140); addText(it.x, it.y - 10, '+' + n, '#ff8a8a'); }
+      else if (it.t === 'coin') { g.coins++; const n = addScore(5); SFX.coin(); burst(it.x + 12, it.y + 12, '#ffd23a', 6, 120); addText(it.x, it.y - 10, '+' + n, '#ffe680'); }
+      else applyPowerup(it.kind, it);
     }
   }
   // ── частицы / текст ──
@@ -1015,16 +1093,34 @@ function drawLava(camX, t) {
   const bob = Math.sin(t * 4) * 3;
   for (let x = off - lw; x < W + lw; x += lw) spr('lava', f, x, LAVA_Y + bob, false, lw, lh);
   ctx.fillStyle = '#c8300a'; ctx.fillRect(0, LAVA_Y + lh + bob - 1, W, H);
+  drawSparks(camX, bob);
+}
+// ── фоновые искры над лавой: редкая постоянная крошка + всплески раз в пару секунд ──
+const SPARKS = []; let sparkPrevCam = null, sparkBurstIn = 1.5, sparkAcc = 0;
+function drawSparks(camX, bob) {
+  const now = performance.now() / 1000; const dt = Math.min(0.05, now - (drawSparks.last || now)); drawSparks.last = now;
+  const scroll = sparkPrevCam === null ? 0 : (camX - sparkPrevCam) * 0.9; sparkPrevCam = camX; // искры едут вместе с лавой
+  const spawn = (x, n, power) => { for (let i = 0; i < n; i++) SPARKS.push({ x: x + (Math.random() - 0.5) * 30, y: LAVA_Y + bob + 4, vx: (Math.random() - 0.5) * 60, vy: -(60 + Math.random() * 90) * power, t: 0, life: 0.9 + Math.random() * 1.1, s: Math.random() < 0.35 ? 4 : 3 }); };
+  sparkAcc += dt * 7; while (sparkAcc >= 1) { sparkAcc--; spawn(Math.random() * W, 1, 0.8); }        // крошка ~7/с
+  sparkBurstIn -= dt; if (sparkBurstIn <= 0) { sparkBurstIn = 1.5 + Math.random() * 3; spawn(Math.random() * W, 6 + Math.random() * 8 | 0, 1.4); }
+  for (const q of SPARKS) { q.t += dt; q.x += q.vx * dt - scroll; q.y += q.vy * dt; q.vy += 40 * dt; q.vx *= 0.99; }
+  for (let i = SPARKS.length - 1; i >= 0; i--) if (SPARKS[i].t >= SPARKS[i].life || SPARKS[i].x < -10 || SPARKS[i].x > W + 10) SPARKS.splice(i, 1);
+  for (const q of SPARKS) {
+    const k = q.t / q.life; // жёлтый → оранжевый → тёмно-красный, гаснет
+    ctx.fillStyle = k < 0.35 ? '#ffe680' : k < 0.7 ? '#ff8a1e' : '#b8300a'; ctx.globalAlpha = 1 - k * k;
+    ctx.fillRect(q.x | 0, q.y | 0, q.s, q.s);
+  }
+  ctx.globalAlpha = 1;
 }
 function drawWorld() {
   const g = G, cx = g.camX;
   for (const pl of g.plats) {
     const sx = pl.x - cx; if (sx > W || sx + pl.w < 0) continue;
-    const T = MANIFEST.tile.w;
+    const tk = IMG[pl.tile] ? pl.tile : 'tile', T = MANIFEST[tk].w;
     ctx.save(); ctx.beginPath(); ctx.rect(sx, pl.y, pl.w, pl.h); ctx.clip();
     for (let x = 0; x < pl.w; x += T) {
-      spr('tile', 0, sx + x, pl.y);
-      for (let y = T; y < pl.h; y += T) spr('tile', 1, sx + x, pl.y + y);
+      spr(tk, 0, sx + x, pl.y);
+      for (let y = T; y < pl.h; y += T) spr(tk, 1, sx + x, pl.y + y);
     }
     ctx.restore();
     for (const s of pl.spikes) for (let x = s.x; x < s.x + s.w; x += 32) spr('spike', 0, x - cx, pl.y - MANIFEST.spike.h + 2, false, 32, MANIFEST.spike.h);
@@ -1034,7 +1130,12 @@ function drawWorld() {
     if (it.got) continue; const sx = it.x - cx; if (sx > W || sx < -40) continue;
     const bob = Math.sin(it.ph) * 4;
     if (it.t === 'crystal') { ctx.drawImage(GLOW, sx - 14, it.y + bob - 12); spr('crystal', 0, sx, it.y + bob); }
-    else spr('coin', it.ph * 2, sx, it.y + bob);
+    else if (it.t === 'coin') spr('coin', it.ph * 2, sx, it.y + bob);
+    else { // усиление: пульсирующее кольцо цвета эффекта
+      const pw = POWERUPS[it.kind], k = 1 + 0.12 * Math.sin(it.ph * 2);
+      ctx.strokeStyle = pw.col; ctx.lineWidth = 2; ctx.globalAlpha = 0.6 + 0.3 * Math.sin(it.ph * 2); ctx.beginPath(); ctx.arc(sx + 15, it.y + bob + 15, 19 * k, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+      spr('pw_' + it.kind, 0, sx, it.y + bob, false, 30, 30);
+    }
   }
   for (const e of g.enemies) {
     const sx = e.x - cx; if (sx > W || sx < -60) continue;
@@ -1044,6 +1145,13 @@ function drawWorld() {
   }
   // игрок
   const p = g.p;
+  if (!p.dead && (g.pw.shield || g.pw.fire > 0)) { // ауры щита и пламени
+    const cx0 = p.x - cx + p.w / 2, cy0 = p.y + p.h / 2, tt = g.t * 6;
+    ctx.save(); ctx.globalAlpha = 0.5 + 0.2 * Math.sin(tt);
+    ctx.strokeStyle = g.pw.fire > 0 ? '#ff6a1e' : '#4fa3ff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx0, cy0, 44 + 3 * Math.sin(tt), 0, 7); ctx.stroke();
+    if (g.pw.fire > 0 && Math.random() < 0.5) g.parts.push({ x: p.x + p.w * Math.random(), y: p.y + p.h * Math.random(), vx: -g.speed * 0.3, vy: -120 - Math.random() * 80, col: '#ff8a1e', t: 0, life: 0.3 + Math.random() * 0.3 });
+    ctx.restore();
+  }
   if (!(p.inv > 0 && !p.dead && ((p.inv * 12) | 0) % 2)) {
     let key = 'player_run', frame = p.anim;
     if (p.dead) { key = 'player_dead'; frame = Math.min(MANIFEST.player_dead.frames - 1, p.deadT * 10); }
@@ -1078,6 +1186,16 @@ function drawHud() {
   for (let i = 0; i < 5; i++) spr('heart', i < g.p.hp ? 0 : 1, 84 + i * 32, 16);
   ctx.fillStyle = '#f0e0e0'; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'left';
   ctx.fillText(SKINS[skin].name, 84, 64);
+  { // активные усиления: иконка + полоска оставшегося времени
+    let hx = 84;
+    for (const [k, pw] of Object.entries(POWERUPS)) {
+      const active = k === 'shield' ? g.pw.shield : (g.pw[k] > 0);
+      if (!active) continue;
+      spr('pw_' + k, 0, hx, 72, false, 22, 22);
+      if (pw.dur) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(hx, 96, 22, 4); ctx.fillStyle = pw.col; ctx.fillRect(hx, 96, 22 * g.pw[k] / pw.dur, 4); }
+      hx += 28;
+    }
+  }
   spr('crystal', 0, W - 300, 14, false, 18, 26); ctx.fillText('x ' + g.crystals, W - 276, 36);
   spr('coin', 0, W - 300, 44, false, 20, 20);   ctx.fillText('x ' + g.coins, W - 276, 62);
   ctx.textAlign = 'right'; ctx.font = 'bold 26px monospace'; ctx.fillStyle = '#ffe680';
@@ -1198,5 +1316,5 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {}));
 }
 // отладочный хук (для автотестов из консоли)
-window.HELLKA = { get G() { return G; }, get state() { return state; }, start: startGame, jump: () => { jumpPressed = true; }, step: dt => { if (state === 'play') update(dt); }, keys, tb, MUSIC, SFX_EL, ACH, unlocked, STATS, toasts, setState: v => { state = v; }, TWITCH, SKINS, SKIN_IMG, applySkin, nextSkin, get skin() { return skin; } };
+window.HELLKA = { get G() { return G; }, get state() { return state; }, start: startGame, jump: () => { jumpPressed = true; }, step: dt => { if (state === 'play') update(dt); }, keys, tb, MUSIC, SFX_EL, ACH, unlocked, STATS, toasts, setState: v => { state = v; }, TWITCH, TILESETS, SPARKS, SKINS, SKIN_IMG, applySkin, nextSkin, get skin() { return skin; } };
 })();

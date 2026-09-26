@@ -157,7 +157,8 @@ save_sheet('spike', [rgba('0f88bda5')], target_w=32)
 
 # ── тайлы на чёрном фоне: две плитки рядом ──
 def black_pair(prefix, size):
-    im = Image.open(raw(prefix)).convert('RGB'); im = im.crop(black_bbox(im))
+    path = prefix if os.path.isabs(prefix) or os.path.exists(prefix) else raw(prefix)
+    im = Image.open(path).convert('RGB'); im = im.crop(black_bbox(im))
     half = im.width // 2
     parts = []
     for x0 in (0, half):
@@ -165,6 +166,14 @@ def black_pair(prefix, size):
         parts.append(p.resize((size, size), Image.LANCZOS).convert('RGBA'))
     return parts
 save_sheet('tile', black_pair('662ed930', 96), target_h=48)
+# дополнительные наборы террейна: assets_raw/tiles/tile_<имя>.png (две плитки рядом на чёрном) → assets/tiles/<имя>.png
+tiles_raw = os.path.join(RAW, 'tiles')
+if os.path.isdir(tiles_raw):
+    tman = manifest.setdefault('tiles', {})
+    for f in sorted(os.listdir(tiles_raw)):
+        if not f.lower().startswith('tile_') or not f.lower().endswith('.png'): continue
+        name = f[5:-4].lower()
+        save_sheet(name, black_pair(os.path.join(tiles_raw, f), 96), target_h=48, out=os.path.join(OUT, 'tiles'), man=tman)
 # лава: каждый кадр = тайл + его зеркало, чтобы повтор по горизонтали был бесшовным
 def mirror_pair(im):
     out = Image.new('RGBA', (im.width * 2, im.height)); out.paste(im, (0, 0)); out.paste(im.transpose(Image.FLIP_LEFT_RIGHT), (im.width, 0)); return out
@@ -215,6 +224,18 @@ if tw:
     if bb: im = im.crop(bb)
     m = max(im.size); sq = Image.new('RGBA', (m, m), (0, 0, 0, 0)); sq.paste(im, ((m - im.width) // 2, (m - im.height) // 2), im)
     sq.resize((40, 40), Image.LANCZOS).save(os.path.join(OUT, 'twitch.png')); manifest['twitch'] = {'frames': 1, 'w': 40, 'h': 40}; print('twitch 40x40')
+
+# ── иконки усилений (необязательно): assets_raw/powerups/<id>.png → assets/pw_<id>.png 30x30 ──
+pw_raw = os.path.join(RAW, 'powerups'); n_pw = 0
+if os.path.isdir(pw_raw):
+    for pid in ['heart', 'shield', 'magnet', 'x2', 'fire']:
+        sp = os.path.join(pw_raw, pid + '.png')
+        if not os.path.exists(sp): continue
+        im = chroma_key(Image.open(sp)); bb = alpha_bbox(im)
+        if bb: im = im.crop(bb)
+        m = max(im.size); sq = Image.new('RGBA', (m, m), (0, 0, 0, 0)); sq.paste(im, ((m - im.width) // 2, (m - im.height) // 2), im)
+        sq.resize((30, 30), Image.LANCZOS).save(os.path.join(OUT, 'pw_' + pid + '.png')); manifest['pw_' + pid] = {'frames': 1, 'w': 30, 'h': 30}; n_pw += 1
+print(f'иконки усилений: {n_pw}/5 (остальные — заглушки в игре)')
 
 # ── портрет ──
 por = Image.open(raw_named('avatar.png', 'eefea498')).convert('RGBA').resize((56, 56), Image.LANCZOS)  # assets_raw/avatar.png, иначе старая генерация
