@@ -46,6 +46,33 @@
     "w": 56,
     "h": 56
    }
+  },
+  "queen": {
+   "player_run": {
+    "frames": 8,
+    "w": 56,
+    "h": 68
+   },
+   "player_jump": {
+    "frames": 8,
+    "w": 61,
+    "h": 71
+   },
+   "player_dead": {
+    "frames": 7,
+    "w": 68,
+    "h": 77
+   },
+   "player_hurt": {
+    "frames": 1,
+    "w": 56,
+    "h": 67
+   },
+   "portrait": {
+    "frames": 1,
+    "w": 56,
+    "h": 56
+   }
   }
  },
  "imp": {
@@ -72,6 +99,21 @@
   "frames": 1,
   "w": 32,
   "h": 25
+ },
+ "bat": {
+  "frames": 2,
+  "w": 41,
+  "h": 40
+ },
+ "skull": {
+  "frames": 2,
+  "w": 56,
+  "h": 40
+ },
+ "fireball": {
+  "frames": 1,
+  "w": 28,
+  "h": 18
  },
  "tile": {
   "frames": 2,

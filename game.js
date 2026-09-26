@@ -16,6 +16,9 @@ const MANIFEST = {
   player_hurt: { frames: 1, w: 48, h: 72 },
   player_dead: { frames: 1, w: 48, h: 72 },
   imp:         { frames: 2, w: 48, h: 40 },
+  bat:         { frames: 2, w: 48, h: 32 },   // летучая тварь: не топчется, только пламя или обход
+  skull:       { frames: 2, w: 40, h: 40 },   // череп-плевалка: сидит на платформе, плюёт огнём
+  fireball:    { frames: 1, w: 18, h: 18 },
   crystal:     { frames: 1, w: 24, h: 34 },
   coin:        { frames: 4, w: 24, h: 24 },
   heart:       { frames: 2, w: 28, h: 26 },   // кадр 0 — полное, 1 — пустое
@@ -55,7 +58,7 @@ function sheet(canvases) {
   return c;
 }
 
-const PAL = { R:'#d8322a', D:'#8f1d14', S:'#f7d6bd', E:'#3a7fe0', K:'#1b1b22', B:'#87b6ea', L:'#5a8bd0', W:'#ffffff', Y:'#ffd23a', O:'#d98a00', G:'#4a4a52', H:'#6c6c78', A:'#2c2c34', T:'#ff6a2a', F:'#ffd45a', P:'#ff2d2d', N:'#8b0000', M:'#ffb0a8' };
+const PAL = { V:'#6a2a8a', R:'#d8322a', D:'#8f1d14', S:'#f7d6bd', E:'#3a7fe0', K:'#1b1b22', B:'#87b6ea', L:'#5a8bd0', W:'#ffffff', Y:'#ffd23a', O:'#d98a00', G:'#4a4a52', H:'#6c6c78', A:'#2c2c34', T:'#ff6a2a', F:'#ffd45a', P:'#ff2d2d', N:'#8b0000', M:'#ffb0a8' };
 
 const HEAD = `....RR....RR....
 ...RRRR..RRRR...
@@ -141,6 +144,48 @@ RRRRWRRRRWRRRR
 ..RRRRRRRRRR..
 ..............
 ...KK....KK...`];
+const BAT = [
+`V..............V
+VV....K..K....VV
+VVV..KKKKKK..VVV
+.VVVVKYKKYKVVVV.
+..VVVKKKKKKVVV..
+...VVKKWWKKVV...
+.....KKKKKK.....
+......K..K......`,
+`................
+......K..K......
+.....KKKKKK.....
+VVVVVKYKKYKVVVVV
+.VVVVKKKKKKVVVV.
+..VVVKKWWKKVVV..
+...VVKKKKKKVV...
+......K..K......`];
+const SKULL = [
+`...WWWWWWW...
+..WWWWWWWWW..
+.WWWWWWWWWWW.
+.WWKKWWWKKWW.
+.WWKYWWWYKWW.
+.WWWWWKWWWWW.
+..WWWWWWWWW..
+..WKWKWKWKW..
+...WWWWWWW...`,
+`...WWWWWWW...
+..WWWWWWWWW..
+.WWWWWWWWWWW.
+.WWKKWWWKKWW.
+.WWKTWWWTKWW.
+.WWWWWKWWWWW.
+..WWTTTTTWW..
+..WKWTTTWKW..
+...WWWWWWW...`];
+const FIREBALL = `..TTT.
+.TFFFT
+TFFYFT
+TFYYFT
+.TFFT.
+..TT..`;
 const CRYSTAL = `....PP....
 ...PMPP...
 ..PMPPPP..
@@ -328,6 +373,9 @@ function fallback(key) {
     case 'player_hurt':
     case 'player_dead': return pix(HELLKA_JUMP, { ...PAL, S:'#ffe0e0', R:'#ff8080', K:'#5a3a44' }, 3);
     case 'imp':         return sheet(IMP.map(m => pix(m, PAL, 3)));
+    case 'bat':         return sheet(BAT.map(m => pix(m, PAL, 3)));
+    case 'skull':       return sheet(SKULL.map(m => pix(m, PAL, 3)));
+    case 'fireball':    return pix(FIREBALL, PAL, 3);
     case 'crystal':     return pix(CRYSTAL, PAL, 3);
     case 'coin':        return sheet(COINS.map(m => pix(m, PAL, 2)));
     case 'heart':       return sheet(HEARTS.map(m => pix(m, PAL, 2)));
@@ -353,15 +401,16 @@ async function loadAssets() {
   // manifest.js подключён в index.html (работает и через file://); json — запасной вариант
   let ext = window.ASSET_MANIFEST || {};
   if (!window.ASSET_MANIFEST) { try { ext = await (await fetch('assets/manifest.json')).json(); } catch (e) {} }
+  LOAD.total += Object.keys(MANIFEST).length;
   await Promise.all(Object.keys(MANIFEST).map(key => new Promise(res => {
     const im = new Image();
-    im.onload = () => {
+    im.onload = () => { LOAD.done++;
       IMG[key] = im; const m = MANIFEST[key];
       if (ext[key]) m.frames = ext[key].frames;
       m.w = im.width / m.frames; m.h = im.height; // рисуем 1:1
       res();
     };
-    im.onerror = () => { IMG[key] = fallback(key); res(); };
+    im.onerror = () => { LOAD.done++; IMG[key] = fallback(key); res(); };
     im.src = `assets/${key}.png`;
   })));
   await loadSkins(ext);
@@ -500,7 +549,12 @@ addEventListener('keydown', e => {
   if ((state === 'menu' || state === 'pause') && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stepSkin(e.code === 'ArrowLeft' ? -1 : 1); return; }
   if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
   if (e.code === 'KeyM') MUSIC.toggleMute();
-  if (e.code === 'Enter' && (state === 'menu' || state === 'over')) startGame();
+  if (cardShown) { cardShown = null; jumpPressed = false; return; }
+  if (state === 'stats' && ['Escape', 'Enter', 'Space', 'KeyT'].includes(e.code)) { state = 'menu'; jumpPressed = false; return; }
+  if (state === 'menu' && e.code === 'KeyT') { state = 'stats'; return; }
+  if (state === 'menu' && e.code === 'KeyD') { startGame('daily'); return; }
+  if (state === 'over' && e.code === 'Escape') { state = 'menu'; return; }
+  if (e.code === 'Enter' && (state === 'menu' || state === 'over')) startGame(state === 'menu' ? 'endless' : undefined);
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 const touchEl = document.getElementById('touch');
@@ -552,12 +606,19 @@ cv.addEventListener('pointerdown', e => {
   if (si >= 0) { dragSlider = si; sliderSet(si, p); cv.setPointerCapture(e.pointerId); if (SLIDERS[si].key === 'sfx') SFX.coin(); return; }
   if (state === 'ach') { if (inBtn(p, ACH_PREV)) { achFlip(-1); return; } if (inBtn(p, ACH_NEXT)) { achFlip(1); return; } closeAch(); return; }
   if (state === 'menu' && inBtn(p, ACH_BTN)) { openAch('menu'); return; }
+  if (state === 'menu' && inBtn(p, STATS_BTN)) { state = 'stats'; SFX.confirm(); return; }
+  if (state === 'stats') { state = 'menu'; return; }
+  if (state === 'menu' && inBtn(p, MODE_BTN)) { startGame('endless'); return; }
+  if (state === 'menu' && inBtn(p, DAILY_BTN)) { startGame('daily'); return; }
+  if (cardShown) { cardShown = null; return; }
+  if (state === 'over' && inBtn(p, SHARE_BTN)) { shareResult(); return; }
+  if (state === 'over' && inBtn(p, MENU_BTN)) { state = 'menu'; return; }
   if ((state === 'menu' || state === 'pause') && inBtn(p, SKIN_L)) { stepSkin(-1); return; }
   if ((state === 'menu' || state === 'pause') && inBtn(p, SKIN_R)) { stepSkin(1); return; }
   if (state === 'menu' && inBtn(p, AUTHOR_BTN)) { window.open(AUTHOR.url, '_blank', 'noopener'); return; }
   if (state === 'menu' && inBtn(p, TWITCH_BTN)) { if (TWITCH.live) unlockAch(ACH.find(a => a.id === 'visit')); window.open(TWITCH.url, '_blank', 'noopener'); return; }
   if (state === 'pause' && inBtn(p, ACH_BTN_PAUSE)) { openAch('pause'); return; }
-  if (state === 'menu' || state === 'over') { startGame(); return; }
+  if (state === 'menu' || state === 'over') { startGame(state === 'menu' ? 'endless' : undefined); return; }
   if (p.x > W - 70 && p.y < 70) { togglePause(); return; }
   if (state === 'pause') { togglePause(); return; }
   if (!isTouch) jumpPressed = true;
@@ -620,6 +681,7 @@ const ACH = [
   { id: 'score_6666',   t: 'Княжка Тьмы',    d: '6666 очков за один забег',          f: r => r.score >= 6666 },
   { id: 'crystals_666', t: 'Три шестёрки',   d: '666 кристаллов за всё время',       f: (r, tot) => tot.crystals + r.crystals >= 666 },
   { id: 'last_heart_60',t: 'Не сегодня',     d: '60 секунд на последнем сердце',     f: r => r.p.hp === 1 && r.hp1T >= 0 && r.t - r.hp1T >= 60 },
+  { id: 'combo_40',     t: 'Без промаха',    d: 'Комбо 40 — множитель ×3',           f: r => r.comboMax >= 40 },
   // скрытые: условия и иконки не показываются, пока не открыты
   { id: 'ghost',        t: 'Призрак',        d: '2000 очков без единого урона',      hidden: true, f: r => r.score >= 2000 && r.hits === 0 },
   { id: 'pacifist',     t: 'Пацифистка',     d: '90 секунд, не тронув ни беса',      hidden: true, f: r => r.t >= 90 && r.stomps === 0 },
@@ -636,7 +698,7 @@ const ACH_IMG = {};
 for (const a of [...ACH, HIDDEN]) { const im = new Image(); im.onload = () => { ACH_IMG[a.id] = im; }; im.src = `assets/ach/${a.id}.png`; }
 function loadJSON(k, def) { try { return Object.assign(def, JSON.parse(localStorage.getItem(k) || '{}')); } catch (e) { return def; } }
 const unlocked = loadJSON('hellka_ach', {});                       // id → дата
-const STATS = loadJSON('hellka_stats', { runs: 0, deaths: 0, crystals: 0, coins: 0, stomps: 0, dist: 0, lavaDeaths: 0 });
+const STATS = loadJSON('hellka_stats', { runs: 0, deaths: 0, crystals: 0, coins: 0, stomps: 0, dist: 0, lavaDeaths: 0, bestCombo: 0, time: 0, powerups: 0 });
 const toasts = [];                                                  // всплывашки: {a, t}
 let newAch = 0;                                                     // открыто за текущий забег
 function unlockAch(a) {
@@ -700,10 +762,43 @@ function drawAchScreen() {
   centerText(`${achPage + 1} / ${pages}`, H - 30, 16, '#f0d0d0');
   ctx.textAlign = 'right'; ctx.font = '13px monospace'; ctx.fillStyle = '#bbb'; ctx.fillText('ESC / тап — назад', W - 44, H - 30);
 }
+function drawStatsScreen() {
+  ctx.fillStyle = 'rgba(8,0,4,0.82)'; ctx.fillRect(0, 0, W, H);
+  panel(W / 2 - 300, 40, 600, H - 80);
+  centerText('СТАТИСТИКА', 82, 30, '#ff4a4a');
+  const n = Object.keys(unlocked).filter(id => ACH.some(a => a.id === id)).length;
+  const fmtT = t => t >= 3600 ? `${Math.floor(t / 3600)} ч ${Math.floor(t % 3600 / 60)} мин` : `${Math.floor(t / 60)} мин ${t % 60} с`;
+  const rows = [
+    ['рекорд', best], ['лучший в вызове дня', dailyBest() + (DAILY.date === dailyKey() && DAILY.runs ? `  (${DAILY.runs} попыток)` : '')],
+    ['лучшее комбо', STATS.bestCombo], ['достижения', `${n} / ${ACH.length}`],
+    ['забегов', STATS.runs], ['время в игре', fmtT(STATS.time)], ['дистанция', `${STATS.dist} м`],
+    ['кристаллы', STATS.crystals], ['монеты', STATS.coins], ['растоптано бесов', STATS.stomps],
+    ['усилений собрано', STATS.powerups], ['смертей', STATS.deaths + (STATS.lavaDeaths ? `  (в лаве ${STATS.lavaDeaths})` : '')],
+  ];
+  rows.forEach(([k, v], i) => {
+    const y = 122 + i * 30;
+    ctx.textAlign = 'left'; ctx.font = '17px monospace'; ctx.fillStyle = '#c0a0a8'; ctx.fillText(k, W / 2 - 260, y);
+    ctx.textAlign = 'right'; ctx.font = 'bold 17px monospace'; ctx.fillStyle = '#ffe680'; ctx.fillText(String(v), W / 2 + 260, y);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(W / 2 - 260, y + 8, 520, 1);
+  });
+  centerText('ESC / тап — назад', H - 58, 14, '#ddd', false);
+}
 const ACH_PER_PAGE = 18; let achPage = 0;
 const ACH_PREV = { x: W / 2 - 110, y: H - 52, w: 50, h: 32 }, ACH_NEXT = { x: W / 2 + 60, y: H - 52, w: 50, h: 32 };
 function achFlip(d) { const pages = Math.ceil(ACH.length / ACH_PER_PAGE); const n = achPage + d; if (n >= 0 && n < pages) { achPage = n; SFX.coin(); } }
 const ACH_BTN = { x: 20, y: H - 58, w: 250, h: 40 };            // в меню
+const STATS_BTN = { x: 20, y: H - 104, w: 250, h: 40 };          // статистика (меню)
+const MODE_BTN = { x: W / 2 - 250, y: 352, w: 240, h: 40 };      // бесконечный
+const DAILY_BTN = { x: W / 2 + 10, y: 352, w: 240, h: 40 };      // вызов дня
+function drawModeButtons() {
+  panel(MODE_BTN.x, MODE_BTN.y, MODE_BTN.w, MODE_BTN.h); panel(DAILY_BTN.x, DAILY_BTN.y, DAILY_BTN.w, DAILY_BTN.h);
+  ctx.textAlign = 'center'; ctx.font = 'bold 19px monospace';
+  ctx.fillStyle = '#ffe680'; ctx.fillText('▶ Бесконечный', MODE_BTN.x + MODE_BTN.w / 2, MODE_BTN.y + 27);
+  ctx.fillStyle = '#ff9a6a'; ctx.fillText('★ Вызов дня', DAILY_BTN.x + DAILY_BTN.w / 2, DAILY_BTN.y + 27);
+  ctx.font = '12px monospace'; ctx.fillStyle = '#c0a0a8';
+  ctx.fillText('пробел / Enter', MODE_BTN.x + MODE_BTN.w / 2, MODE_BTN.y + MODE_BTN.h + 13);
+  ctx.fillText(dailyKey() + (dailyBest() ? '  ·  лучший ' + dailyBest() : '  ·  клавиша D'), DAILY_BTN.x + DAILY_BTN.w / 2, DAILY_BTN.y + DAILY_BTN.h + 13);
+}
 const ACH_BTN_PAUSE = { x: W / 2 - 125, y: 296, w: 250, h: 38 };  // в паузе
 let achFrom = 'menu';                                             // куда возвращаться с экрана достижений
 function openAch(from) { achFrom = from; state = 'ach'; SFX.confirm(); }
@@ -730,13 +825,23 @@ function pickPowerup(r) {
   for (const [k, p] of Object.entries(POWERUPS)) { v -= p.weight; if (v <= 0) return k; }
   return 'heart';
 }
-function addScore(n) { G.score += n * (G.pw.x2 > 0 ? 2 : 1); return n * (G.pw.x2 > 0 ? 2 : 1); }
+// комбо: подряд собранные предметы без пропусков и урона. Множитель ×1 → ×1.5 (10) → ×2 (20) → ×2.5 (30) → ×3 (40)
+function comboMult() { return 1 + Math.min(4, Math.floor(G.combo / 10)) * 0.5; }
+function addScore(n, useCombo = true) {
+  const m = (G.pw.x2 > 0 ? 2 : 1) * (useCombo ? comboMult() : 1);
+  const v = Math.round(n * m); G.score += v; return v;
+}
+function comboUp() { G.combo++; G.comboFlash = 0.35; if (G.combo > G.comboMax) G.comboMax = G.combo; }
+function comboBreak(why) {
+  if (G.combo >= 10) { addText(G.p.x, G.p.y - 30, 'комбо ×' + G.combo + ' сброшено', '#c0a0a8'); }
+  G.combo = 0;
+}
 function applyPowerup(k, it) {
   const p = G.p, pw = POWERUPS[k];
   if (k === 'heart') { if (p.hp < 5) p.hp++; }
   else if (k === 'shield') G.pw.shield = true;
   else G.pw[k] = pw.dur;
-  SFX.crystal(); burst(it.x + 15, it.y + 15, pw.col, 14, 180); addText(it.x - 10, it.y - 12, pw.name, pw.col); G.hudFlash = 0;
+  SFX.crystal(); burst(it.x + 15, it.y + 15, pw.col, 14, 180); addText(it.x - 10, it.y - 12, pw.name, pw.col); G.hudFlash = 0; STATS.powerups++;
 }
 
 // ───────────────────────── НАБОРЫ ТЕРРЕЙНА ─────────────────────────
@@ -764,6 +869,7 @@ function pickTileset(r) {
 const SKINS = {
   default: { name: 'Хеллка',      dir: 'assets',            unlock: null },
   dark:    { name: 'Княжна Тьмы', dir: 'assets/skins/dark', unlock: 'score_2500' }, // открывается за «Легенду ада»
+  queen:   { name: 'Владычица Чертовска', dir: 'assets/skins/queen', unlock: 'score_6666' }, // за «Княжку Тьмы»
 };
 const SKIN_KEYS = ['player_run', 'player_jump', 'player_dead', 'player_hurt', 'portrait'];
 const SKIN_IMG = {};
@@ -864,11 +970,19 @@ function drawAuthor() {
   ctx.fillText('автор: ' + AUTHOR.name, AUTHOR_BTN.x + AUTHOR_BTN.w, AUTHOR_BTN.y + 16);
 }
 
-function startGame() {
+// ───────────────────────── РЕЖИМЫ ─────────────────────────
+// daily — «Вызов дня»: сид из даты, у всех игроков один и тот же мир в течение суток
+let mode = 'endless';
+function dailyKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function dailySeed() { let h = 2166136261; for (const ch of dailyKey()) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+const DAILY = loadJSON('hellka_daily', { date: '', best: 0, runs: 0 });
+function dailyBest() { return DAILY.date === dailyKey() ? DAILY.best : 0; }
+function startGame(m) {
+  mode = m || mode;
   G = {
-    t: 0, camX: 0, speed: 200, score: 0, crystals: 0, coins: 0, dist: 0, stomps: 0, hits: 0, achT: 0, missedCrystals: 0, gapCrystals: 0, hp1Score: -1, hp1T: -1, lavaDeath: false, zoneTile: 'tile', zoneLeft: 0, pw: { magnet: 0, x2: 0, fire: 0, shield: false },
+    t: 0, camX: 0, speed: 200, score: 0, crystals: 0, coins: 0, dist: 0, stomps: 0, hits: 0, achT: 0, missedCrystals: 0, gapCrystals: 0, hp1Score: -1, hp1T: -1, lavaDeath: false, zoneTile: 'tile', zoneLeft: 0, pw: { magnet: 0, x2: 0, fire: 0, shield: false }, shots: [], combo: 0, comboMax: 0, comboFlash: 0,
     plats: [], items: [], enemies: [], parts: [], texts: [],
-    genX: 0, lastY: LEVELS[0], rnd: mulberry(Date.now() & 0xffff),
+    genX: 0, lastY: LEVELS[0], rnd: mulberry(mode === 'daily' ? dailySeed() : (Date.now() & 0xffff)), mode,
     p: { x: 120, y: 300, w: 30, h: 66, vx: 0, vy: 0, ground: false, jumps: 0, hp: 5, inv: 0, anim: 0, face: 1, dead: false, deadT: 0 },
     shake: 0, hudFlash: 0,
   };
@@ -924,7 +1038,16 @@ function generate() {
       const spk = p.spikes[0];
       let ex = x + 80 + r() * (len - 160);
       if (spk && Math.abs(ex - spk.x - 32) < 90) ex = spk.x > x + len / 2 ? x + 60 : x + len - 100;
-      G.enemies.push({ x: ex, y: y - 40, w: 44, h: 40, vx: (r() < 0.5 ? -1 : 1) * (60 + r() * 60), px: x + 10, pw: len - 60, anim: r() * 4, dead: false, deadT: 0 });
+      const roll = r();
+      if (G.t > 45 && roll < 0.22) // череп-плевалка: сидит на месте, стреляет вверх-влево дугой
+        G.enemies.push({ type: 'skull', x: ex, y: y - 40, w: 36, h: 40, vx: 0, px: ex, pw: 36, anim: r() * 4, dead: false, deadT: 0, shotIn: 1 + r() * 1.5 });
+      else
+        G.enemies.push({ type: 'imp', x: ex, y: y - 40, w: 44, h: 40, vx: (r() < 0.5 ? -1 : 1) * (60 + r() * 60), px: x + 10, pw: len - 60, anim: r() * 4, dead: false, deadT: 0 });
+    }
+    // летучая тварь: над пропастью или платформой, волной, навстречу; только с 30-й секунды
+    if (G.t > 30 && r() < 0.18 + Math.min(0.25, G.t / 400)) {
+      const by = y - 150 - r() * 60;
+      G.enemies.push({ type: 'bat', x: x + r() * len, y: by, y0: by, w: 44, h: 30, vx: -(40 + r() * 50), px: -1e9, pw: 2e9, anim: r() * 4, dead: false, deadT: 0, wave: r() * 6 });
     }
     G.genX = x + len;
     G.lastY = y;
@@ -932,7 +1055,7 @@ function generate() {
   // чистка позади камеры
   const lim = G.camX - 300;
   G.plats = G.plats.filter(p => p.x + p.w > lim);
-  for (const i of G.items) if (i.t === 'crystal' && !i.got && i.x + i.w <= lim) G.missedCrystals++;
+  for (const i of G.items) if (!i.got && i.x + i.w <= lim) { if (i.t === 'crystal') G.missedCrystals++; if (i.t !== 'pw') comboBreak('miss'); }
   G.items = G.items.filter(i => i.x + i.w > lim && !i.got);
   G.enemies = G.enemies.filter(e => e.x + e.w > lim && !(e.dead && e.deadT > 0.6));
 }
@@ -947,7 +1070,7 @@ function hurt(p, kx) {
     G.pw.shield = false; p.inv = 0.8; p.vy = -300; SFX.stomp(); G.shake = 0.2;
     burst(p.x + p.w / 2, p.y + p.h / 2, '#4fa3ff', 16, 200); addText(p.x - 10, p.y - 14, 'ЩИТ!', '#8fc8ff'); return;
   }
-  p.hp--; p.inv = 1.6; p.vy = -420; p.vx = kx; G.shake = 0.35; G.hudFlash = 0.4; G.hits++;
+  p.hp--; p.inv = 1.6; p.vy = -420; p.vx = kx; G.shake = 0.35; G.hudFlash = 0.4; G.hits++; comboBreak('hit');
   if (p.hp === 1) { G.hp1Score = G.score; G.hp1T = G.t; } // «Феникс» и «Не сегодня»: с момента последнего сердца
   SFX.hurt(); burst(p.x + p.w / 2, p.y + p.h / 2, '#ff4040', 12);
   if (p.hp <= 0) die();
@@ -955,8 +1078,11 @@ function hurt(p, kx) {
 function die() {
   const p = G.p; if (p.dead) return;
   p.dead = true; p.deadT = 0; p.vy = -500; SFX.dead(); G.shake = 0.6; MUSIC.stop();
-  if (G.score > best) { best = Math.floor(G.score); localStorage.setItem('hellka_best', best); }
-  STATS.runs++; STATS.deaths++; if (G.lavaDeath) STATS.lavaDeaths++; STATS.crystals += G.crystals; STATS.coins += G.coins; STATS.stomps += G.stomps; STATS.dist += Math.floor(G.dist / 10);
+  if (G.mode === 'daily') {
+    if (DAILY.date !== dailyKey()) { DAILY.date = dailyKey(); DAILY.best = 0; DAILY.runs = 0; }
+    DAILY.runs++; DAILY.best = Math.max(DAILY.best, Math.floor(G.score)); localStorage.setItem('hellka_daily', JSON.stringify(DAILY));
+  } else if (G.score > best) { best = Math.floor(G.score); localStorage.setItem('hellka_best', best); }
+  STATS.runs++; STATS.deaths++; if (G.lavaDeath) STATS.lavaDeaths++; STATS.bestCombo = Math.max(STATS.bestCombo, G.comboMax); STATS.time += Math.floor(G.t); STATS.crystals += G.crystals; STATS.coins += G.coins; STATS.stomps += G.stomps; STATS.dist += Math.floor(G.dist / 10);
   saveStats(); checkAch(true);
 }
 
@@ -967,9 +1093,10 @@ function update(dt) {
   g.speed = Math.min(560, 200 + g.t * 2.2 + Math.pow(g.t, 1.35) * 0.5);
   g.camX += g.speed * dt;
   g.dist += g.speed * dt;
-  addScore(g.speed * dt * 0.02); // очки за дистанцию
+  addScore(g.speed * dt * 0.02, false); // очки за дистанцию (без комбо)
   for (const k of ['magnet', 'x2', 'fire']) if (g.pw[k] > 0) g.pw[k] = Math.max(0, g.pw[k] - dt);
   if (g.shake > 0) g.shake -= dt;
+  if (g.comboFlash > 0) g.comboFlash -= dt;
   if (!p.dead) { g.achT += dt; if (g.achT >= 0.25) { g.achT = 0; checkAch(false); } }
   MUSIC.update(Math.max(0, Math.min(1, (g.speed / 200 - 1.5) / 0.6)), dt);
   if (g.hudFlash > 0) g.hudFlash -= dt;
@@ -1036,18 +1163,32 @@ function update(dt) {
   for (const e of g.enemies) {
     if (e.dead) { e.deadT += dt; continue; }
     e.x += e.vx * dt; e.anim += dt * 6;
+    if (e.type === 'bat') { e.wave += dt * 3; e.y = e.y0 + Math.sin(e.wave) * 28; }
+    if (e.type === 'skull') { // плевок огнём
+      e.shotIn -= dt;
+      if (e.shotIn <= 0 && Math.abs(e.x - p.x) < 700) { e.shotIn = 2.4 + Math.random() * 0.8; e.spit = 0.35; g.shots.push({ x: e.x + 8, y: e.y + 6, vx: -170, vy: -330, t: 0 }); SFX.hurt && beep(500, 200, 0.12, 'square', 0.05); }
+      if (e.spit > 0) e.spit -= dt;
+    }
     if (e.x < e.px) { e.x = e.px; e.vx = Math.abs(e.vx); }
     if (e.x + e.w > e.px + e.pw) { e.x = e.px + e.pw - e.w; e.vx = -Math.abs(e.vx); }
     if (!p.dead && p.x + p.w - 6 > e.x && p.x + 6 < e.x + e.w && p.y + p.h > e.y && p.y < e.y + e.h) {
-      if (g.pw.fire > 0) { // пламя: бес сгорает от касания
-        e.dead = true; g.stomps++; const n = addScore(25); SFX.stomp();
+      const reward = e.type === 'skull' ? 40 : e.type === 'bat' ? 30 : 25;
+      if (g.pw.fire > 0) { // пламя: любой враг сгорает от касания
+        e.dead = true; g.stomps++; const n = addScore(reward); SFX.stomp();
         burst(e.x + e.w / 2, e.y + e.h / 2, '#ff8a1e', 18, 220); addText(e.x, e.y - 10, '+' + n, '#ffb03a');
-      } else if (p.vy > 0 && p.y + p.h - p.vy * dt <= e.y + 12) {
-        e.dead = true; p.vy = -JUMP_V * 0.7; p.jumps = 1; const n = addScore(25); g.stomps++; SFX.stomp();
-        burst(e.x + e.w / 2, e.y + e.h / 2, '#d8322a', 14); addText(e.x, e.y - 10, '+' + n, '#ffb0a8');
+      } else if (e.type !== 'bat' && p.vy > 0 && p.y + p.h - p.vy * dt <= e.y + 12) {
+        e.dead = true; p.vy = -JUMP_V * 0.7; p.jumps = 1; const n = addScore(reward); g.stomps++; SFX.stomp();
+        burst(e.x + e.w / 2, e.y + e.h / 2, e.type === 'skull' ? '#e8e0d0' : '#d8322a', 14); addText(e.x, e.y - 10, '+' + n, '#ffb0a8');
       } else hurt(p, g.speed - 280);
     }
   }
+  // ── огненные плевки ──
+  for (const sh of g.shots) {
+    sh.t += dt; sh.x += sh.vx * dt; sh.y += sh.vy * dt; sh.vy += 700 * dt;
+    if (!p.dead && p.inv <= 0 && Math.abs(sh.x - (p.x + p.w / 2)) < 20 && Math.abs(sh.y - (p.y + p.h / 2)) < 36) { sh.t = 99; hurt(p, g.speed - 200); }
+    if (Math.random() < 0.5) g.parts.push({ x: sh.x, y: sh.y, vx: 0, vy: -20, col: '#ff8a1e', t: 0, life: 0.25 });
+  }
+  g.shots = g.shots.filter(sh => sh.t < 3 && sh.y < LAVA_Y + 20 && sh.x > g.camX - 100);
   // ── предметы ──
   for (const it of g.items) {
     if (it.got) continue;
@@ -1059,8 +1200,8 @@ function update(dt) {
     }
     if (!p.dead && p.x + p.w > it.x && p.x < it.x + it.w && p.y + p.h > it.y && p.y < it.y + it.h) {
       it.got = true;
-      if (it.t === 'crystal') { g.crystals++; const n = addScore(10); if (it.gap) g.gapCrystals++; SFX.crystal(); burst(it.x + 12, it.y + 17, '#ff5a5a', 8, 140); addText(it.x, it.y - 10, '+' + n, '#ff8a8a'); }
-      else if (it.t === 'coin') { g.coins++; const n = addScore(5); SFX.coin(); burst(it.x + 12, it.y + 12, '#ffd23a', 6, 120); addText(it.x, it.y - 10, '+' + n, '#ffe680'); }
+      if (it.t === 'crystal') { g.crystals++; comboUp(); const n = addScore(10); if (it.gap) g.gapCrystals++; SFX.crystal(); burst(it.x + 12, it.y + 17, '#ff5a5a', 8, 140); addText(it.x, it.y - 10, '+' + n, '#ff8a8a'); }
+      else if (it.t === 'coin') { g.coins++; comboUp(); const n = addScore(5); SFX.coin(); burst(it.x + 12, it.y + 12, '#ffd23a', 6, 120); addText(it.x, it.y - 10, '+' + n, '#ffe680'); }
       else applyPowerup(it.kind, it);
     }
   }
@@ -1139,9 +1280,14 @@ function drawWorld() {
   }
   for (const e of g.enemies) {
     const sx = e.x - cx; if (sx > W || sx < -60) continue;
-    const im = MANIFEST.imp, ix = sx + e.w / 2 - im.w / 2, iy = e.y + e.h - im.h;
-    if (e.dead) { ctx.save(); ctx.globalAlpha = 1 - e.deadT / 0.6; spr('imp', 0, ix, iy + e.deadT * 60, e.vx > 0, im.w, im.h * (1 - e.deadT)); ctx.restore(); }
-    else spr('imp', e.anim, ix, iy + Math.sin(e.anim * 2) * 2, e.vx > 0);
+    const key = e.type === 'bat' ? 'bat' : e.type === 'skull' ? 'skull' : 'imp';
+    const im = MANIFEST[key], ix = sx + e.w / 2 - im.w / 2, iy = e.y + e.h - im.h;
+    if (e.dead) { ctx.save(); ctx.globalAlpha = 1 - e.deadT / 0.6; spr(key, 0, ix, iy + e.deadT * 60, e.vx > 0, im.w, im.h * (1 - e.deadT)); ctx.restore(); }
+    else if (e.type === 'skull') spr(key, e.spit > 0 ? 1 : 0, ix, iy, false);
+    else spr(key, e.anim, ix, iy + Math.sin(e.anim * 2) * 2, e.vx > 0);
+  }
+  for (const sh of g.shots) { const fm = MANIFEST.fireball; spr('fireball', 0, sh.x - cx - fm.w / 2, sh.y - fm.h / 2, false); }
+  for (const e of []) {
   }
   // игрок
   const p = g.p;
@@ -1202,6 +1348,13 @@ function drawHud() {
   ctx.fillText(Math.floor(g.score).toString().padStart(6, '0'), W - 90, 40);
   ctx.font = '14px monospace'; ctx.fillStyle = '#c0a0a8';
   ctx.fillText('скорость ' + (g.speed / 200).toFixed(2) + 'x', W - 90, 62);
+  if (g.combo >= 3) { // комбо: счётчик и множитель, вспышка при сборе
+    const k = g.comboFlash > 0 ? 1 + g.comboFlash * 0.8 : 1, m = comboMult();
+    ctx.save(); ctx.translate(W - 90, 88); ctx.scale(k, k);
+    ctx.font = 'bold 18px monospace'; ctx.fillStyle = m >= 2 ? '#ff6a4a' : '#ffe680'; ctx.textAlign = 'right';
+    ctx.fillText('КОМБО ' + g.combo + (m > 1 ? '  ×' + m : ''), 0, 0); ctx.restore();
+    const next = (Math.floor(g.combo / 10) + 1) * 10; if (g.combo < 40) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 210, 94, 120, 4); ctx.fillStyle = '#ffe680'; ctx.fillRect(W - 210, 94, 120 * ((g.combo % 10) / 10), 4); }
+  }
   // пауза
   panel(W - 70, 14, 54, 54); ctx.fillStyle = '#ddd';
   if (state === 'pause') { ctx.beginPath(); ctx.moveTo(W - 52, 28); ctx.lineTo(W - 28, 41); ctx.lineTo(W - 52, 54); ctx.fill(); }
@@ -1261,39 +1414,111 @@ function drawMenu(t) {
   panel(W / 2 - 236, 52, 472, 176); // зазор до бейджа Twitch слева
   drawTitle(W / 2, 148, 96, t);
   centerText('Пробежка по Чертовску', 192, 20, '#f0c0c0', false);
-  centerText('ПРОБЕЛ / ТАП — начать', 372, 24, '#ffe680');
-  centerText('← → двигаться   •   пробел / ↑ прыжок (двойной)   •   P пауза   •   M звук', 400, 15, '#d0b0b8', false);
-  centerText('кристалл +10   монета +5   бес (прыжок сверху) +25   лава = смерть', 420, 15, '#d0b0b8', false);
+  drawModeButtons();
+  centerText('← → двигаться   •   пробел / ↑ прыжок (двойной)   •   P пауза   •   M звук', 426, 12, '#d0b0b8', false);
   drawSliders(444);
   if (best) centerText('рекорд: ' + best, 216, 17, '#ffb0a8');
   drawAchButton(ACH_BTN);
+  panel(STATS_BTN.x, STATS_BTN.y, STATS_BTN.w, STATS_BTN.h); ctx.textAlign = 'left'; ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#ffe680'; ctx.fillText('≡ Статистика', STATS_BTN.x + 14, STATS_BTN.y + 27);
   drawAuthor();
   drawTwitch(t, 1 / 60);
 }
 function drawOver() {
   drawBg(G.camX, G.t); drawLava(G.camX, G.t); drawWorld();
   ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H);
-  panel(W / 2 - 260, 110, 520, 320);
-  centerText('ИГРА ОКОНЧЕНА', 170, 44, '#ff4a4a');
-  centerText('очки: ' + Math.floor(G.score), 235, 32, '#ffe680');
-  centerText(`кристаллы ${G.crystals}   монеты ${G.coins}   дистанция ${Math.floor(G.dist / 10)} м`, 275, 18, '#f0c0c0', false);
-  centerText('рекорд: ' + best + (Math.floor(G.score) >= best && best > 0 ? '  ★ новый!' : ''), 320, 22, '#ffb0a8');
-  if (newAch) centerText(`★ новых достижений: ${newAch}`, 355, 18, '#ffe680');
-  centerText('ПРОБЕЛ / ТАП — ещё раз', 395, 24, '#ffffff');
+  panel(W / 2 - 270, 84, 540, 372);
+  centerText(G.mode === 'daily' ? 'ВЫЗОВ ДНЯ  ' + dailyKey() : 'ИГРА ОКОНЧЕНА', 136, G.mode === 'daily' ? 34 : 44, '#ff4a4a');
+  centerText('очки: ' + Math.floor(G.score), 196, 32, '#ffe680');
+  centerText(`кристаллы ${G.crystals}   монеты ${G.coins}   дистанция ${Math.floor(G.dist / 10)} м   комбо ${G.comboMax}`, 232, 16, '#f0c0c0', false);
+  const sc = Math.floor(G.score), rec = G.mode === 'daily' ? dailyBest() : best;
+  centerText((G.mode === 'daily' ? 'лучший сегодня: ' : 'рекорд: ') + rec + (sc >= rec && rec > 0 ? '  ★ новый!' : ''), 270, 20, '#ffb0a8');
+  if (newAch) centerText(`★ новых достижений: ${newAch}`, 300, 16, '#ffe680');
+  panel(SHARE_BTN.x, SHARE_BTN.y, SHARE_BTN.w, SHARE_BTN.h); panel(MENU_BTN.x, MENU_BTN.y, MENU_BTN.w, MENU_BTN.h);
+  ctx.textAlign = 'center'; ctx.font = 'bold 18px monospace';
+  ctx.fillStyle = '#8fc8ff'; ctx.fillText(shareBusy ? '…' : '⇪ Поделиться', SHARE_BTN.x + SHARE_BTN.w / 2, SHARE_BTN.y + 26);
+  ctx.fillStyle = '#f0d0d0'; ctx.fillText('В меню', MENU_BTN.x + MENU_BTN.w / 2, MENU_BTN.y + 26);
+  if (shareMsgT > 0) { shareMsgT -= 1 / 60; ctx.font = '13px monospace'; ctx.fillStyle = '#8fc8ff'; ctx.fillText(shareMsg, W / 2, SHARE_BTN.y + SHARE_BTN.h + 18); }
+  centerText('ПРОБЕЛ / ТАП — ещё раз' + (G.mode === 'daily' ? ' (вызов дня)' : ''), 428, 20, '#ffffff');
+}
+const SHARE_BTN = { x: W / 2 - 230, y: 330, w: 220, h: 38 }, MENU_BTN = { x: W / 2 + 10, y: 330, w: 220, h: 38 };
+let shareBusy = false;
+// ── карточка результата 1200x630: фон из слоёв, логотип, спрайт скина, цифры ──
+function renderShareCard() {
+  const c = document.createElement('canvas'); c.width = 1200; c.height = 630; const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+  const sc = 630 / 540;
+  const bgw = im => Math.round(im.width / MANIFEST[im === IMG.bg_far ? 'bg_far' : im === IMG.bg_mid ? 'bg_mid' : 'bg_sky'].frames * (630 / im.height));
+  g.drawImage(IMG.bg_sky, 0, 0, 1200, 630);
+  g.drawImage(IMG.bg_far, -200, 0, IMG.bg_far.width * sc, 630); g.drawImage(IMG.bg_mid, -600, 0, IMG.bg_mid.width * sc, 630);
+  g.fillStyle = 'rgba(10,0,6,0.55)'; g.fillRect(0, 0, 1200, 630);
+  // лава и платформа
+  const lava = IMG.lava, lw = MANIFEST.lava.w; for (let x = 0; x < 1200; x += lw * 1.5) g.drawImage(lava, 0, 0, lw, 64, x, 560, lw * 1.5, 96);
+  const tile = IMG.tile, tw = MANIFEST.tile.w; for (let x = 0; x < 760; x += 72) { g.drawImage(tile, 0, 0, tw, tw, x, 470, 72, 72); g.drawImage(tile, tw, 0, tw, tw, x, 542, 72, 72); }
+  // логотип
+  if (IMG.title) { const h = 150, w = h * IMG.title.width / IMG.title.height; g.drawImage(IMG.title, 60, 36, w, h); }
+  else { g.font = 'bold 110px Lobster, cursive'; g.fillStyle = '#ff5a40'; g.textAlign = 'left'; g.fillText('Хеллка', 70, 150); }
+  // спрайт скина (кадр прыжка)
+  const pj = IMG.player_jump, pm = MANIFEST.player_jump, fw = pm.w, fi = Math.min(3, pm.frames - 1);
+  g.drawImage(pj, fi * fw, 0, fw, pm.h, 120, 470 - pm.h * 3.2, fw * 3.2, pm.h * 3.2);
+  // цифры
+  const label = (t, x, y, size, col, bold = true, align = 'left') => { g.font = `${bold ? 'bold ' : ''}${size}px monospace`; g.textAlign = align; g.fillStyle = '#000'; g.fillText(t, x + 3, y + 3); g.fillStyle = col; g.fillText(t, x, y); };
+  label(G.mode === 'daily' ? 'ВЫЗОВ ДНЯ · ' + dailyKey() : 'БЕСКОНЕЧНЫЙ ЗАБЕГ', 1140, 80, 26, '#ff9a6a', true, 'right');
+  label(String(Math.floor(G.score)), 1140, 190, 112, '#ffe680', true, 'right');
+  label('очков', 1140, 232, 28, '#f0d0d0', false, 'right');
+  const n = Object.keys(unlocked).filter(id => ACH.some(a => a.id === id)).length;
+  const lines = [`комбо ×${G.comboMax}`, `кристаллы ${G.crystals}  ·  монеты ${G.coins}`, `дистанция ${Math.floor(G.dist / 10)} м  ·  ${Math.floor(G.t)} с`, `скин: ${SKINS[skin].name}`, `достижения ${n} / ${ACH.length}`];
+  lines.forEach((t, i) => label(t, 1140, 292 + i * 40, 26, '#f0d0d0', false, 'right'));
+  label('viyy.github.io/Hellka_game', 1150, 612, 22, '#ffe680', true, 'right');
+  return c;
+}
+let shareMsg = '', shareMsgT = 0;
+function downloadBlob(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+async function shareResult() {
+  if (shareBusy) return; shareBusy = true;
+  try {
+    const c = renderShareCard();
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    if (!blob) throw new Error('toBlob');
+    const name = `hellka-${Math.floor(G.score)}.png`;
+    const text = `Хеллка: ${Math.floor(G.score)} очков` + (G.mode === 'daily' ? ` в вызове дня ${dailyKey()}` : '') + ` · комбо ×${G.comboMax}`;
+    // системное «поделиться» — только на тач-устройствах (на ПК Chrome часто отклоняет вызов после подготовки картинки); иначе скачивание
+    let shared = false;
+    if (isTouch && navigator.canShare) {
+      try { const file = new File([blob], name, { type: 'image/png' }); if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text, title: 'Хеллка' }); shared = true; } }
+      catch (e) { if (e && e.name === 'AbortError') shared = true; /* отменил сам — не скачиваем */ }
+    }
+    if (!shared) { downloadBlob(blob, name); shareMsg = 'картинка сохранена: ' + name; shareMsgT = 3; }
+    SFX.confirm();
+  } catch (e) {
+    // экспорт запрещён (например, игра открыта через file://) — показываем карточку на экране, её можно заскриншотить
+    try { cardShown = renderShareCard(); shareMsg = location.protocol === 'file:' ? 'через file:// сохранить нельзя — сделай скриншот' : 'сохранить не удалось — сделай скриншот'; shareMsgT = 4; }
+    catch (e2) { shareMsg = 'не удалось подготовить картинку: ' + (e2 && e2.message || e2); shareMsgT = 4; }
+  }
+  shareBusy = false;
+}
+let cardShown = null; // карточка результата, показанная на весь экран (закрывается любым нажатием)
+function drawCardOverlay() {
+  ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0, 0, W, H);
+  const k = Math.min((W - 40) / 1200, (H - 70) / 630), cw = 1200 * k, ch = 630 * k;
+  ctx.drawImage(cardShown, (W - cw) / 2, 16, cw, ch);
+  centerText(shareMsg + '   ·   тап / любая клавиша — закрыть', H - 22, 14, '#8fc8ff', false);
 }
 
 let last = 0, acc = 0, menuT = 0;
 function loop(ts) {
   requestAnimationFrame(loop);
   let dt = Math.min(0.05, (ts - last) / 1000 || 0); last = ts;
-  if (state === 'menu' || (state === 'ach' && achFrom === 'menu')) {
+  if (state === 'menu' || state === 'stats' || (state === 'ach' && achFrom === 'menu')) {
     menuT += dt; drawMenu(menuT);
     if (state === 'ach') { drawAchScreen(); jumpPressed = false; return; }
+    if (state === 'stats') { drawStatsScreen(); jumpPressed = false; return; }
     drawToasts(dt);
-    if (jumpPressed) { jumpPressed = false; startGame(); }
+    if (jumpPressed) { jumpPressed = false; startGame('endless'); }
     return;
   }
-  if (state === 'over') { drawOver(); drawToasts(dt); if (jumpPressed) { jumpPressed = false; startGame(); } return; }
+  if (state === 'over') { drawOver(); drawToasts(dt); if (cardShown) { drawCardOverlay(); jumpPressed = false; return; } if (jumpPressed) { jumpPressed = false; startGame(); } return; }
   if (state === 'play') { acc += dt; const step = 1 / 120; while (acc >= step) { update(step); acc -= step; } }
   jumpPressed = false;
   ctx.save();
@@ -1311,10 +1536,23 @@ function loop(ts) {
     drawSkinPicker(W / 2, 410, G.t + menuT);
   }
 }
-loadAssets().then(() => requestAnimationFrame(loop));
+// экран загрузки: прогресс по числу загруженных файлов, чтобы первый запуск на медленной сети не выглядел зависшим
+const LOAD = { done: 0, total: 0, finished: false };
+function drawLoading() {
+  if (LOAD.finished) return;
+  ctx.fillStyle = '#12060c'; ctx.fillRect(0, 0, W, H);
+  const k = LOAD.total ? LOAD.done / LOAD.total : 0;
+  ctx.textAlign = 'center'; ctx.font = 'bold 28px monospace'; ctx.fillStyle = '#ff4a4a'; ctx.fillText('ХЕЛЛКА', W / 2, H / 2 - 30);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(W / 2 - 160, H / 2, 320, 12);
+  ctx.fillStyle = '#d8322a'; ctx.fillRect(W / 2 - 160, H / 2, 320 * k, 12);
+  ctx.font = '14px monospace'; ctx.fillStyle = '#c0a0a8'; ctx.fillText(`загрузка… ${Math.round(k * 100)}%`, W / 2, H / 2 + 36);
+  requestAnimationFrame(drawLoading);
+}
+requestAnimationFrame(drawLoading);
+loadAssets().then(() => { LOAD.finished = true; requestAnimationFrame(loop); });
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {}));
 }
 // отладочный хук (для автотестов из консоли)
-window.HELLKA = { get G() { return G; }, get state() { return state; }, start: startGame, jump: () => { jumpPressed = true; }, step: dt => { if (state === 'play') update(dt); }, keys, tb, MUSIC, SFX_EL, ACH, unlocked, STATS, toasts, setState: v => { state = v; }, TWITCH, TILESETS, SPARKS, SKINS, SKIN_IMG, applySkin, nextSkin, get skin() { return skin; } };
+window.HELLKA = { get G() { return G; }, get state() { return state; }, start: startGame, jump: () => { jumpPressed = true; }, step: dt => { if (state === 'play') update(dt); }, keys, tb, MUSIC, SFX_EL, ACH, unlocked, STATS, toasts, setState: v => { state = v; }, TWITCH, TILESETS, SPARKS, DAILY, dailyKey, renderShareCard, get mode() { return mode; }, SKINS, SKIN_IMG, applySkin, nextSkin, get skin() { return skin; } };
 })();

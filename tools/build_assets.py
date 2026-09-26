@@ -17,6 +17,20 @@ def raw(prefix):
             return os.path.join(RAW, f)
     sys.exit(f'не найден файл с префиксом {prefix}')
 
+def raw_named(name, fallback_prefix=None):
+    p = os.path.join(RAW, name)
+    if os.path.exists(p): return p
+    return raw(fallback_prefix) if fallback_prefix else None
+def chroma_key(im, thr=90):
+    im = im.convert('RGBA')
+    if im.getextrema()[3][0] < 255: return im  # уже есть прозрачность
+    px = im.load(); w, h = im.size
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if g > 150 and r < thr and b < thr: px[x, y] = (r, g, b, 0)
+    return im
+
 ALPHA_THR = 40  # почти прозрачный шум вокруг генераций игнорируем
 def alpha_bbox(im):
     return im.split()[3].point(lambda v: 255 if v > ALPHA_THR else 0).getbbox()
@@ -48,19 +62,19 @@ def black_bbox(im, thr=40):
     diff = Image.eval(Image.merge('RGB', [ch.point(lambda v, b=b: abs(v - b)) for ch, b in zip(im.split(), bg)]).convert('L'), lambda v: 255 if v > thr // 3 else 0)
     return diff.getbbox()
 
-def pad_frames(frames, anchor='bottom'):
+def pad_frames(frames, anchor='bottom', halign='center'):
     mw = max(f.width for f in frames); mh = max(f.height for f in frames)
     out = []
     for f in frames:
         c = Image.new('RGBA', (mw, mh), (0, 0, 0, 0))
-        x = (mw - f.width) // 2
+        x = (mw - f.width) // 2 if halign == 'center' else (mw - f.width if halign == 'right' else 0)
         y = mh - f.height if anchor == 'bottom' else (mh - f.height) // 2
         c.paste(f, (x, y), f); out.append(c)
     return out
 
-def save_sheet(name, frames, target_h=None, target_w=None, out=None, man=None):
+def save_sheet(name, frames, target_h=None, target_w=None, out=None, man=None, halign='center'):
     out = out or OUT; man = manifest if man is None else man; os.makedirs(out, exist_ok=True)
-    frames = pad_frames(frames)
+    frames = pad_frames(frames, halign=halign)
     fw, fh = frames[0].size
     if target_h: s = target_h / fh
     else: s = target_w / fw
@@ -128,7 +142,7 @@ hurt = gif_frames(raw('side_view_running_cy_taking-punch_north-east'), pick=[2])
 save_sheet('player_hurt', hurt, target_h=round(hurt[0].height * S))
 
 # ── дополнительные скины: assets_raw/<папка>/ → assets/skins/<id>/ (без перекраски) ──
-SKIN_DIRS = {'dark': 'dark_skin'}
+SKIN_DIRS = {'dark': 'dark_skin', 'queen': 'queen_skin'}
 def raw_in(d, sub):
     for f in sorted(os.listdir(d)):
         if sub in f.lower() and f.lower().endswith(('.gif', '.png')): return os.path.join(d, f)
@@ -154,6 +168,20 @@ save_sheet('heart', split_by_alpha(rgba('198a803b')), target_h=26)
 save_sheet('coin', split_by_alpha(rgba('fda5a9cd')), target_h=24)
 save_sheet('crystal', [rgba('63977877')], target_h=34)
 save_sheet('spike', [rgba('0f88bda5')], target_w=32)
+
+# ── новые враги (необязательно): assets_raw/enemies/bat.png (2 кадра рядом), skull.png (2 кадра), fireball.png ──
+en_raw = os.path.join(RAW, 'enemies')
+if os.path.isdir(en_raw):
+    for name, frames, h in [('bat', 2, 40), ('skull', 2, 40), ('fireball', 1, 18)]:
+        sp = os.path.join(en_raw, name + '.png')
+        if not os.path.exists(sp): continue
+        im = chroma_key(Image.open(sp)); im = im.crop(alpha_bbox(im))
+        parts = split_by_alpha(im) if frames > 1 else [im]
+        if len(parts) != frames:  # куски разлетелись (например, отдельный язык пламени) — делим на равные колонки
+            cw = im.width // frames; parts = []
+            for k in range(frames):
+                part = im.crop((k * cw, 0, (k + 1) * cw, im.height)); bb = alpha_bbox(part); parts.append(part.crop(bb) if bb else part)
+        save_sheet(name, parts, target_h=h, halign='right' if name == 'skull' else 'center')
 
 # ── тайлы на чёрном фоне: две плитки рядом ──
 def black_pair(prefix, size):
@@ -182,19 +210,6 @@ save_sheet('lava', [mirror_pair(t) for t in black_pair('4d9a5911', 128)], target
 # ── фоны ──
 # Фоны. Если в assets_raw лежат файлы с именами bg_sky.png / bg_far.png / bg_mid.png — берём их,
 # иначе старые генерации по хэш-префиксу. Слои без альфы, но с ярко-зелёным фоном, кеим по цвету.
-def raw_named(name, fallback_prefix=None):
-    p = os.path.join(RAW, name)
-    if os.path.exists(p): return p
-    return raw(fallback_prefix) if fallback_prefix else None
-def chroma_key(im, thr=90):
-    im = im.convert('RGBA')
-    if im.getextrema()[3][0] < 255: return im  # уже есть прозрачность
-    px = im.load(); w, h = im.size
-    for y in range(h):
-        for x in range(w):
-            r, g, b, a = px[x, y]
-            if g > 150 and r < thr and b < thr: px[x, y] = (r, g, b, 0)
-    return im
 sky_src = raw_named('bg_sky.png')
 if sky_src:
     Image.open(sky_src).convert('RGB').resize((960, 540), Image.LANCZOS).save(os.path.join(OUT, 'bg_sky.png'))
@@ -313,7 +328,7 @@ print('og.png 1200x630')
 
 # ── иконки достижений: assets_raw/ach/<id>.png → assets/ach/<id>.png 64x64 ──
 ACH_IDS = ['first_run', 'score_500', 'score_1000', 'score_2500', 'crystals_50', 'coins_50', 'stomp_10', 'speed_2', 'speed_max', 'survive_60', 'no_hit_500', 'deaths_10',
-           'score_666', 'score_6666', 'crystals_666', 'last_heart_60', 'visit', 'lava_66', 'ghost', 'pacifist', 'perfectionist', 'phoenix', 'daredevil', 'marathon', 'midnight', 'hidden']
+           'score_666', 'score_6666', 'crystals_666', 'last_heart_60', 'combo_40', 'visit', 'lava_66', 'ghost', 'pacifist', 'perfectionist', 'phoenix', 'daredevil', 'marathon', 'midnight', 'hidden']
 ach_raw = next((os.path.join(RAW, d) for d in ('ach', 'achiv', 'achievements') if os.path.isdir(os.path.join(RAW, d))), os.path.join(RAW, 'ach')); ach_out = os.path.join(OUT, 'ach'); os.makedirs(ach_out, exist_ok=True); n_ach = 0
 for aid in ACH_IDS:
     src_p = os.path.join(ach_raw, aid + '.png')

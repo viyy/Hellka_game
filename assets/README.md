@@ -58,12 +58,6 @@ Pixel art single sprite, side view facing right, mid-air jump pose with knees tu
 Pixel art single sprite, side view facing right, hit reaction pose: leaning back, eyes squeezed shut, mouth open, small pain sparks around the head. Character: chibi anime devil girl "Hellka" — long bright red hair, small red horns, pointed ears, big blue eyes, black off-shoulder top, light blue pleated skirt, black thigh-high boots, thin red devil tail with arrow tip. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette, dark fantasy hell theme with crimson / black / orange accents, transparent background, game asset sprite.
 ```
 
-### imp.png
-
-```
-Pixel art sprite sheet, 2 frames in a single horizontal row, same size. Small round red imp enemy facing left: angry yellow eyes, tiny black horns, small fangs, little bat wings — frame 1 wings up, frame 2 wings down. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette, dark fantasy hell theme with crimson / black / orange accents, transparent background, game asset sprite.
-```
-
 ### crystal.png
 
 ```
@@ -130,9 +124,68 @@ Pixel art icon for a streamer badge, square, single centered object: a purple sp
 Pixel art square avatar icon, close-up of chibi anime devil girl "Hellka": long bright red hair, small red horns, big blue eyes, slight smirk, dark stone frame border around the icon. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette, dark fantasy hell theme with crimson / black / orange accents, game HUD icon.
 ```
 
-## Скины
+## Скины (персонаж в PixelLab)
 
-Второй скин («Княжна Тьмы», тёмный образ) собирается из `assets_raw/dark_skin/`: GIF-ы бега (8 кадров), прыжка, удара и смерти из PixelLab плюс `avatar.png` для портрета. Скрипт ищет файлы по подстрокам `running`, `jump`, `punch`, `death`, `avatar` и кладёт результат в `assets/skins/dark/`. Перекраска волос и рожек к этому скину не применяется. Открывается за достижение «Легенда ада» (2500 очков), переключается кнопкой в меню и паузе или клавишей S.
+Персонаж собирается из GIF-анимаций PixelLab: бег (8 кадров), прыжок, удар, смерть, все «east» (вправо), плюс квадратный аватар для портрета в HUD. Базовый скин лежит в корне `assets_raw/` (+ `avatar.png`), дополнительные — в подпапках (`assets_raw/dark_skin/`), скрипт ищет файлы по подстрокам `running`, `jump`, `punch`, `death`, `avatar`. Скины: «Княжна Тьмы» открывается за «Легенду ада» (2500), «Владычица Чертовска» — за «Княжку Тьмы» (6666). Переключаются стрелками у спрайта в меню и паузе. Новый скин удобнее делать через «Edit character» от базового, чтобы сохранить пропорции.
+
+### Базовый скин — Хеллка (PixelLab, описание персонажа)
+```
+Chibi devil girl with long bright red hair, small horns, pointed ears, and big blue eyes, wearing a black off-shoulder top, light blue pleated skirt, and black thigh-high boots, thin red devil tail with arrow tip, running pose, side view, crisp edges, bold color contrast.
+```
+
+### Тёмный скин — Княжна Тьмы (PixelLab)
+```
+Chibi devil girl with long dark purple hair with magenta highlights, small blue-violet horns, long pointed elf ears, big red eyes with a soft blush on the cheeks, slight smile, wearing an oversized black hoodie with a teal-blue flame emblem on the chest and sleeves covering the hands, dark choker with a small pendant, black thigh-high boots, thin dark purple devil tail with arrow tip, running pose, side view, crisp edges, bold color contrast, moody dark palette.
+```
+
+### Скин за 6666 — Владычица Чертовска (PixelLab), папка `assets_raw/queen_skin/`
+```
+Chibi devil girl, ruler of hell: long hair made of living flame, orange to bright yellow at the tips, large curved black obsidian horns with glowing lava cracks, pointed ears, glowing golden eyes, a small black spiked crown, black off-shoulder royal dress with gold trim and a short torn crimson cape, black thigh-high boots with gold edges, thin black devil tail with a flaming arrow tip, running pose, side view, crisp edges, bold color contrast, dark and regal palette.
+```
+
+### queen_skin/avatar.png — портрет Владычицы
+```
+Pixel art square avatar icon, close-up of a chibi devil girl face, ruler of hell: hair made of living flame in orange and yellow, large curved black obsidian horns with glowing lava cracks, pointed ears, glowing golden eyes, confident smirk, small black spiked crown, gold trim of a black dress at the bottom. Dark stone frame border with a thin gold line, dark and regal palette of black, crimson, gold and orange. 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+
+### avatar.png — портрет базового скина (и favicon)
+```
+Pixel art square avatar icon, close-up of chibi devil girl Hellka face: bright red hair, red horns, big blue eyes, slight smirk, dark stone frame border, pixel art, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+
+### dark_skin/avatar.png — портрет тёмного скина
+```
+Pixel art square avatar icon, close-up of a chibi devil girl face: long dark purple hair with magenta highlights, small blue-violet horns, long pointed elf ears, big red eyes with a soft blush on the cheeks, slight smile, dark choker with a small pendant, black hoodie collar visible at the bottom. Dark stone frame border, moody dark palette with purple and teal-blue accents. 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+
+## Враги
+
+Все смотрят **влево** (игра отражает при движении вправо). Бес — из `assets_raw/` по хэшу, новые враги — `assets_raw/enemies/bat.png`, `skull.png`, `fireball.png`; пока файлов нет, рисуются кодом.
+
+| Враг | Появление | Поведение | Очки |
+|---|---|---|---|
+| Бес (`imp.png`) | с начала | ходит по платформе, топчется | +25 |
+| Летучая тварь (`bat.png`) | с 30 с | летит волной навстречу, **не топчется**, только пламя или обход | +30 |
+| Череп-плевалка (`skull.png` + `fireball.png`) | с 45 с | сидит на платформе, раз в ~3 с плюёт огненным шаром по дуге, топчется | +40 |
+
+### imp.png
+
+```
+Pixel art sprite sheet, 2 frames in a single horizontal row, same size. Small round red imp enemy facing left: angry yellow eyes, tiny black horns, small fangs, little bat wings — frame 1 wings up, frame 2 wings down. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette, dark fantasy hell theme with crimson / black / orange accents, transparent background, game asset sprite.
+```
+
+### bat.png
+```
+Pixel art sprite sheet, 2 frames in a single horizontal row, same size: a small purple hell bat with tattered wings, glowing yellow eyes and tiny fangs, facing left; frame 1 wings up, frame 2 wings down. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette of dark purple, magenta and black, transparent background, no text.
+```
+### skull.png
+```
+Pixel art sprite sheet, 2 frames in a single horizontal row, same size: a bleached demon skull with small horns sitting on the ground, facing left; frame 1 jaw closed with glowing red eye sockets, frame 2 jaw wide open spitting a burst of orange fire. 16-bit SNES style, crisp pixels, no anti-aliasing, bone-white / dark red / orange palette, transparent background, no text.
+```
+### fireball.png
+```
+Pixel art single sprite, small round fireball with an orange core, yellow center and a short flame tail to the right. 16-bit SNES style, crisp pixels, no anti-aliasing, transparent background, no text.
+```
 
 ## Усиления (power-ups)
 
@@ -273,6 +326,11 @@ Pixel art achievement badge icon, square, single centered object: a small purple
 ```
 Pixel art achievement badge icon, square, single centered object: a cute devil girl chibi relaxing in a bubbling lava pool like a hot spring, only her head with horns and a tiny towel visible, steam rising. Dark stone frame border, crimson, orange and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
 ```
+### combo_40.png (достижение «Без промаха»)
+```
+Pixel art achievement badge icon, square, single centered object: a chain of five glowing red crystals linked by golden sparks with a bold golden "x3" below. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing.
+```
+
 ### hidden.png
 ```
 Pixel art achievement badge icon, square, single centered object: a large glowing question mark carved into dark stone, faint red smoke around it. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
