@@ -27,6 +27,7 @@ const MANIFEST = {
   bg_mid:      { frames: 1, w: 960, h: 540 }, // скалы (parallax ближний, с прозрачностью)
   portrait:    { frames: 1, w: 56, h: 56 },
   title:       { frames: 1, w: 560, h: 150 }, // сгенерированный логотип (необязательно)
+  twitch:      { frames: 1, w: 40, h: 40 },   // иконка бейджа канала (необязательно)
 };
 const IMG = {};
 
@@ -292,6 +293,13 @@ function makeBgMid() {
   for (let i = 0; i < 4; i++) { const x = 120 + i * 260 + rnd() * 60; g.fillRect(x, 0, 30, 90 + rnd() * 60); g.fillStyle = '#7a1420'; g.fillRect(x + 12, 20, 6, 30); g.fillStyle = '#5a0e14'; }
   return c;
 }
+function makeTwitchIcon() {
+  const c = document.createElement('canvas'); c.width = 40; c.height = 40; const g = c.getContext('2d');
+  g.fillStyle = '#9146ff'; g.fillRect(6, 8, 28, 22); g.fillRect(10, 30, 6, 6); g.fillRect(6, 4, 28, 4);
+  g.fillStyle = '#e8352a'; g.fillRect(8, 0, 4, 6); g.fillRect(28, 0, 4, 6); // рожки
+  g.fillStyle = '#fff'; g.fillRect(16, 12, 4, 10); g.fillRect(24, 12, 4, 10); // «глаза» как у логотипа
+  return c;
+}
 function makePortrait() {
   const c = document.createElement('canvas'); c.width = 56; c.height = 56;
   const g = c.getContext('2d');
@@ -319,6 +327,7 @@ function fallback(key) {
     case 'bg_mid':      return makeBgMid();
     case 'portrait':    return makePortrait();
     case 'title':       return null; // нет файла — заголовок рисуется процедурно (drawTitle)
+    case 'twitch':      return makeTwitchIcon();
   }
 }
 async function loadAssets() {
@@ -338,6 +347,7 @@ async function loadAssets() {
     im.onerror = () => { IMG[key] = fallback(key); res(); };
     im.src = `assets/${key}.png`;
   })));
+  await loadSkins(ext);
 }
 // рисует кадр frame спрайта key в логическом размере из манифеста
 function spr(key, frame, x, y, flip, w, h) {
@@ -465,8 +475,11 @@ addEventListener('keydown', e => {
   if (['ArrowLeft','ArrowRight','ArrowUp','Space','KeyA','KeyD','KeyW'].includes(e.code)) e.preventDefault();
   if (!keys[e.code] && (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW')) jumpPressed = true;
   keys[e.code] = true;
+  if (state === 'ach' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { achFlip(e.code === 'ArrowLeft' ? -1 : 1); return; }
   if (state === 'ach' && ['Escape', 'Enter', 'Space', 'KeyA', 'KeyP'].includes(e.code)) { closeAch(); return; }
   if ((state === 'menu' || state === 'pause') && e.code === 'KeyA') { openAch(state); return; }
+  if ((state === 'menu' || state === 'pause') && e.code === 'KeyS') { nextSkin(); return; }
+  if ((state === 'menu' || state === 'pause') && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stepSkin(e.code === 'ArrowLeft' ? -1 : 1); return; }
   if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
   if (e.code === 'KeyM') MUSIC.toggleMute();
   if (e.code === 'Enter' && (state === 'menu' || state === 'over')) startGame();
@@ -519,9 +532,12 @@ cv.addEventListener('pointerdown', e => {
   const p = toGame(e);
   const si = sliderAt(p);
   if (si >= 0) { dragSlider = si; sliderSet(si, p); cv.setPointerCapture(e.pointerId); if (SLIDERS[si].key === 'sfx') SFX.coin(); return; }
-  if (state === 'ach') { closeAch(); return; }
+  if (state === 'ach') { if (inBtn(p, ACH_PREV)) { achFlip(-1); return; } if (inBtn(p, ACH_NEXT)) { achFlip(1); return; } closeAch(); return; }
   if (state === 'menu' && inBtn(p, ACH_BTN)) { openAch('menu'); return; }
+  if ((state === 'menu' || state === 'pause') && inBtn(p, SKIN_L)) { stepSkin(-1); return; }
+  if ((state === 'menu' || state === 'pause') && inBtn(p, SKIN_R)) { stepSkin(1); return; }
   if (state === 'menu' && inBtn(p, AUTHOR_BTN)) { window.open(AUTHOR.url, '_blank', 'noopener'); return; }
+  if (state === 'menu' && inBtn(p, TWITCH_BTN)) { if (TWITCH.live) unlockAch(ACH.find(a => a.id === 'visit')); window.open(TWITCH.url, '_blank', 'noopener'); return; }
   if (state === 'pause' && inBtn(p, ACH_BTN_PAUSE)) { openAch('pause'); return; }
   if (state === 'menu' || state === 'over') { startGame(); return; }
   if (p.x > W - 70 && p.y < 70) { togglePause(); return; }
@@ -530,7 +546,8 @@ cv.addEventListener('pointerdown', e => {
 });
 cv.addEventListener('pointermove', e => {
   if (dragSlider >= 0) sliderSet(dragSlider, toGame(e));
-  authorHover = state === 'menu' && inBtn(toGame(e), AUTHOR_BTN); cv.style.cursor = authorHover ? 'pointer' : '';
+  const gp = toGame(e); authorHover = state === 'menu' && inBtn(gp, AUTHOR_BTN); twitchHover = state === 'menu' && inBtn(gp, TWITCH_BTN);
+  cv.style.cursor = (authorHover || twitchHover) ? 'pointer' : '';
 });
 cv.addEventListener('pointerup', e => { if (dragSlider >= 0 && SLIDERS[dragSlider].key === 'sfx') SFX.coin(); dragSlider = -1; });
 cv.addEventListener('pointercancel', () => { dragSlider = -1; });
@@ -539,6 +556,12 @@ const inLeft  = () => keys.ArrowLeft  || keys.KeyA || tb.left;
 const inRight = () => keys.ArrowRight || keys.KeyD || tb.right;
 const inJumpHeld = () => keys.Space || keys.ArrowUp || keys.KeyW || keys.__tj;
 
+// Ориентация: не блокируем в манифесте (WebAPK с принудительным landscape не запускается на части прошивок),
+// а просим у системы после жеста пользователя. В браузерной вкладке запрос обычно отклоняется — это нормально.
+function lockLandscape() {
+  try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch (e) {}
+}
+if (matchMedia('(display-mode: standalone)').matches) addEventListener('pointerdown', lockLandscape, { once: true });
 function resize() {
   const vw = (visualViewport && visualViewport.width) || innerWidth || document.documentElement.clientWidth || W;
   const vh = (visualViewport && visualViewport.height) || innerHeight || document.documentElement.clientHeight || H;
@@ -575,6 +598,10 @@ const ACH = [
   { id: 'survive_60',   t: 'Минута в аду',   d: 'Продержаться 60 секунд',              f: r => r.t >= 60 },
   { id: 'no_hit_500',   t: 'Без царапины',   d: '500 очков, не получив урона',         f: r => r.score >= 500 && r.hits === 0 },
   { id: 'deaths_10',    t: 'Упорство',       d: 'Погибнуть 10 раз и вернуться',      f: (r, tot) => tot.deaths >= 10 },
+  { id: 'score_666',    t: 'Княжулечка Тьмулички', d: 'Закончить забег ровно с 666 очками', f: (r, tot, end) => end && Math.floor(r.score) === 666 },
+  { id: 'score_6666',   t: 'Княжка Тьмы',    d: '6666 очков за один забег',          f: r => r.score >= 6666 },
+  { id: 'crystals_666', t: 'Три шестёрки',   d: '666 кристаллов за всё время',       f: (r, tot) => tot.crystals + r.crystals >= 666 },
+  { id: 'last_heart_60',t: 'Не сегодня',     d: '60 секунд на последнем сердце',     f: r => r.p.hp === 1 && r.hp1T >= 0 && r.t - r.hp1T >= 60 },
   // скрытые: условия и иконки не показываются, пока не открыты
   { id: 'ghost',        t: 'Призрак',        d: '2000 очков без единого урона',      hidden: true, f: r => r.score >= 2000 && r.hits === 0 },
   { id: 'pacifist',     t: 'Пацифистка',     d: '90 секунд, не тронув ни беса',      hidden: true, f: r => r.t >= 90 && r.stomps === 0 },
@@ -583,24 +610,29 @@ const ACH = [
   { id: 'daredevil',    t: 'Сорвиголова',    d: '25 кристаллов над пропастью',       hidden: true, f: r => r.gapCrystals >= 25 },
   { id: 'marathon',     t: 'Марафон',        d: '3 минуты в одном забеге',           hidden: true, f: r => r.t >= 180 },
   { id: 'midnight',     t: 'Полуночница',    d: 'Забег между полуночью и 4 утра',    hidden: true, f: (r, tot, end) => end && r.t >= 30 && new Date().getHours() < 4 },
+  { id: 'visit',        t: 'Заглянуть в гости', d: 'Зайти на стрим, пока он идёт',   hidden: true, f: () => false }, // открывается кликом по бейджу в эфире
+  { id: 'lava_66',      t: 'Купание',        d: '66 раз искупаться в лаве',          hidden: true, f: (r, tot) => tot.lavaDeaths >= 66 },
 ];
 const HIDDEN = { id: 'hidden', t: '???', d: 'Скрытое достижение' }; // заглушка для закрытых скрытых
 const ACH_IMG = {};
 for (const a of [...ACH, HIDDEN]) { const im = new Image(); im.onload = () => { ACH_IMG[a.id] = im; }; im.src = `assets/ach/${a.id}.png`; }
 function loadJSON(k, def) { try { return Object.assign(def, JSON.parse(localStorage.getItem(k) || '{}')); } catch (e) { return def; } }
 const unlocked = loadJSON('hellka_ach', {});                       // id → дата
-const STATS = loadJSON('hellka_stats', { runs: 0, deaths: 0, crystals: 0, coins: 0, stomps: 0, dist: 0 });
+const STATS = loadJSON('hellka_stats', { runs: 0, deaths: 0, crystals: 0, coins: 0, stomps: 0, dist: 0, lavaDeaths: 0 });
 const toasts = [];                                                  // всплывашки: {a, t}
 let newAch = 0;                                                     // открыто за текущий забег
+function unlockAch(a) {
+  if (!a || unlocked[a.id]) return;
+  unlocked[a.id] = Date.now(); newAch++;
+  localStorage.setItem('hellka_ach', JSON.stringify(unlocked));
+  toasts.push({ a, t: 0 }); SFX.crystal();
+}
 function checkAch(end) {
   if (!G) return;
   for (const a of ACH) {
     if (unlocked[a.id]) continue;
     let ok = false; try { ok = a.f(G, STATS, end); } catch (e) {}
-    if (!ok) continue;
-    unlocked[a.id] = Date.now(); newAch++;
-    localStorage.setItem('hellka_ach', JSON.stringify(unlocked));
-    toasts.push({ a, t: 0 }); SFX.crystal();
+    if (ok) unlockAch(a);
   }
 }
 function saveStats() { localStorage.setItem('hellka_stats', JSON.stringify(STATS)); }
@@ -630,21 +662,31 @@ function drawAchScreen() {
   const n = Object.keys(unlocked).filter(id => ACH.some(a => a.id === id)).length;
   panel(30, 22, W - 60, H - 44);
   centerText(`ДОСТИЖЕНИЯ  ${n} / ${ACH.length}`, 62, 28, '#ff4a4a');
-  const cols = 3, colW = (W - 100) / cols, rowH = 57;
-  ACH.forEach((a, i) => {
+  const cols = 3, colW = (W - 100) / cols, rowH = 62, per = ACH_PER_PAGE;
+  const pages = Math.ceil(ACH.length / per); achPage = Math.max(0, Math.min(pages - 1, achPage));
+  const list = ACH.slice(achPage * per, achPage * per + per);
+  list.forEach((a, i) => {
     // неполный последний ряд центрируем (одна ячейка — в среднюю колонку)
-    const row = Math.floor(i / cols), inRow = Math.min(cols, ACH.length - row * cols), shift = (cols - inRow) * colW / 2;
-    const x = 50 + shift + (i % cols) * colW, y = 80 + row * rowH, got = !!unlocked[a.id];
+    const row = Math.floor(i / cols), inRow = Math.min(cols, list.length - row * cols), shift = (cols - inRow) * colW / 2;
+    const x = 50 + shift + (i % cols) * colW, y = 84 + row * rowH, got = !!unlocked[a.id];
     const show = got || !a.hidden ? a : HIDDEN; // скрытое и не открытое — маскируем
     drawAchIcon(show, x, y, 42, !got);
     ctx.textAlign = 'left'; ctx.font = 'bold 15px monospace'; ctx.fillStyle = got ? '#ffe680' : (a.hidden ? '#6a5a60' : '#8a7a80'); ctx.fillText(show.t, x + 52, y + 16);
     ctx.font = '12px monospace'; ctx.fillStyle = got ? '#f0d0d0' : '#6a5a60'; ctx.fillText(show.d, x + 52, y + 33);
     if (got) { ctx.fillStyle = '#c0a0a8'; ctx.font = '11px monospace'; ctx.fillText(new Date(unlocked[a.id]).toLocaleDateString('ru-RU'), x + 52, y + 48); }
   });
-  centerText('ESC / тап — назад', H - 29, 14, '#ddd', false);
+  // переключение страниц
+  ctx.textAlign = 'center'; ctx.font = 'bold 22px monospace';
+  ctx.fillStyle = achPage > 0 ? '#ffe680' : '#5a4a52'; ctx.fillText('◀', ACH_PREV.x + ACH_PREV.w / 2, ACH_PREV.y + 24);
+  ctx.fillStyle = achPage < pages - 1 ? '#ffe680' : '#5a4a52'; ctx.fillText('▶', ACH_NEXT.x + ACH_NEXT.w / 2, ACH_NEXT.y + 24);
+  centerText(`${achPage + 1} / ${pages}`, H - 30, 16, '#f0d0d0');
+  ctx.textAlign = 'right'; ctx.font = '13px monospace'; ctx.fillStyle = '#bbb'; ctx.fillText('ESC / тап — назад', W - 44, H - 30);
 }
+const ACH_PER_PAGE = 18; let achPage = 0;
+const ACH_PREV = { x: W / 2 - 110, y: H - 52, w: 50, h: 32 }, ACH_NEXT = { x: W / 2 + 60, y: H - 52, w: 50, h: 32 };
+function achFlip(d) { const pages = Math.ceil(ACH.length / ACH_PER_PAGE); const n = achPage + d; if (n >= 0 && n < pages) { achPage = n; SFX.coin(); } }
 const ACH_BTN = { x: 20, y: H - 58, w: 250, h: 40 };            // в меню
-const ACH_BTN_PAUSE = { x: W / 2 - 125, y: 328, w: 250, h: 38 };  // в паузе
+const ACH_BTN_PAUSE = { x: W / 2 - 125, y: 296, w: 250, h: 38 };  // в паузе
 let achFrom = 'menu';                                             // куда возвращаться с экрана достижений
 function openAch(from) { achFrom = from; state = 'ach'; SFX.confirm(); }
 function closeAch() { state = achFrom; jumpPressed = false; }
@@ -655,7 +697,103 @@ function drawAchButton(b) {
   ctx.fillText(`★ Достижения  ${n}/${ACH.length}`, b.x + b.w / 2, b.y + 27);
 }
 function inBtn(p, b) { return p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h; }
+
+// ───────────────────────── СКИНЫ ─────────────────────────
+const SKINS = {
+  default: { name: 'Хеллка',      dir: 'assets',            unlock: null },
+  dark:    { name: 'Княжна Тьмы', dir: 'assets/skins/dark', unlock: 'score_2500' }, // открывается за «Легенду ада»
+};
+const SKIN_KEYS = ['player_run', 'player_jump', 'player_dead', 'player_hurt', 'portrait'];
+const SKIN_IMG = {};
+let skin = localStorage.getItem('hellka_skin') || 'default';
+function skinUnlocked(id) { const s = SKINS[id]; return !!s && (!s.unlock || !!unlocked[s.unlock]); }
+function skinList() { return Object.keys(SKINS).filter(id => SKIN_IMG[id]); }
+async function loadSkins(ext) {
+  SKIN_IMG.default = {};
+  for (const k of SKIN_KEYS) SKIN_IMG.default[k] = { im: IMG[k], frames: MANIFEST[k].frames, w: MANIFEST[k].w, h: MANIFEST[k].h };
+  const ms = (ext && ext.skins) || {};
+  await Promise.all(Object.keys(SKINS).filter(id => id !== 'default' && ms[id]).map(async id => {
+    const m = ms[id], store = {};
+    await Promise.all(SKIN_KEYS.map(k => new Promise(res => {
+      if (!m[k]) return res();
+      const im = new Image();
+      im.onload = () => { store[k] = { im, frames: m[k].frames, w: im.width / m[k].frames, h: im.height }; res(); };
+      im.onerror = () => res(); im.src = `${SKINS[id].dir}/${k}.png`;
+    })));
+    if (SKIN_KEYS.every(k => store[k])) SKIN_IMG[id] = store;
+  }));
+  applySkin(skin);
+}
+function applySkin(id) {
+  if (!SKIN_IMG[id] || !skinUnlocked(id)) id = 'default';
+  skin = id; localStorage.setItem('hellka_skin', id);
+  for (const k of SKIN_KEYS) { const s = SKIN_IMG[id][k]; IMG[k] = s.im; MANIFEST[k].frames = s.frames; MANIFEST[k].w = s.w; MANIFEST[k].h = s.h; }
+}
+function stepSkin(d) {
+  const ids = skinList(); if (ids.length < 2) return;
+  const n = ids[(ids.indexOf(skin) + d + ids.length) % ids.length];
+  if (skinUnlocked(n)) { applySkin(n); SFX.confirm(); } else SFX.hurt();
+}
+function nextSkin() { stepSkin(1); }
+// стрелки по бокам от бегущего спрайта (меню и пауза); хит-зоны обновляются при каждой отрисовке
+const SKIN_L = { x: 0, y: 0, w: 44, h: 60 }, SKIN_R = { x: 0, y: 0, w: 44, h: 60 };
+function drawSkinPicker(cx, feetY, t) {
+  const m = MANIFEST.player_run;
+  spr('player_run', t * 10, cx - m.w / 2, feetY - m.h);
+  const ids = skinList(); if (ids.length < 2) return;
+  const prev = ids[(ids.indexOf(skin) - 1 + ids.length) % ids.length], next = ids[(ids.indexOf(skin) + 1) % ids.length];
+  SKIN_L.x = cx - 96; SKIN_L.y = feetY - 66; SKIN_R.x = cx + 52; SKIN_R.y = feetY - 66;
+  ctx.textAlign = 'center'; ctx.font = 'bold 30px monospace';
+  const bob = Math.sin(t * 4) * 2;
+  ctx.fillStyle = skinUnlocked(prev) ? '#ffe680' : '#5a4a52'; ctx.fillText('◀', SKIN_L.x + 22 - bob, SKIN_L.y + 42);
+  ctx.fillStyle = skinUnlocked(next) ? '#ffe680' : '#5a4a52'; ctx.fillText('▶', SKIN_R.x + 22 + bob, SKIN_R.y + 42);
+  ctx.font = 'bold 15px monospace'; ctx.fillStyle = '#ffe680'; ctx.fillText(SKINS[skin].name, cx, feetY + 18);
+  if (!skinUnlocked(next)) { const req = ACH.find(a => a.id === SKINS[next].unlock); ctx.font = '11px monospace'; ctx.fillStyle = '#8a7a80'; ctx.fillText(SKINS[next].name + ': ' + (req ? req.t : '?'), cx, feetY + 33); }
+}
 // ── автор: неброская подпись, ссылка спрятана в ник (без подсветки) ──
+// ── бейдж стримера: статус эфира через decapi.me (публичный прокси к Twitch, без ключей) ──
+const TWITCH = { login: 'dear_hellgirl', url: 'https://www.twitch.tv/dear_hellgirl', live: null, uptime: '', title: '', t: 0, next: 0 };
+const TWITCH_BTN = { x: 14, y: 14, w: 198, h: 62 };
+let twitchHover = false;
+async function pollTwitch() {
+  if (!navigator.onLine) return;
+  try {
+    const ctrl = new AbortController(); const tm = setTimeout(() => ctrl.abort(), 6000);
+    const up = (await (await fetch(`https://decapi.me/twitch/uptime/${TWITCH.login}`, { signal: ctrl.signal, cache: 'no-store' })).text()).trim();
+    clearTimeout(tm);
+    if (/offline/i.test(up)) { TWITCH.live = false; TWITCH.uptime = ''; TWITCH.title = ''; }
+    else if (/\d/.test(up)) {
+      TWITCH.live = true;
+      const h = /(\d+)\s*hour/.exec(up), m = /(\d+)\s*minute/.exec(up);
+      TWITCH.uptime = (h ? h[1] + ' ч ' : '') + (m ? m[1] + ' мин' : '');
+      try { TWITCH.title = (await (await fetch(`https://decapi.me/twitch/title/${TWITCH.login}`, { cache: 'no-store' })).text()).trim().slice(0, 40); } catch (e) {}
+    }
+  } catch (e) { /* сеть недоступна — статус остаётся неизвестным */ }
+}
+function drawTwitch(t, dt) {
+  TWITCH.t += dt;
+  if (TWITCH.t >= TWITCH.next) { TWITCH.next = TWITCH.t + 60; pollTwitch(); } // раз в минуту, пока открыто меню
+  const b = TWITCH_BTN;
+  ctx.save();
+  ctx.fillStyle = twitchHover ? 'rgba(60,20,90,0.85)' : 'rgba(30,10,45,0.75)'; ctx.fillRect(b.x, b.y, b.w, b.h);
+  ctx.strokeStyle = TWITCH.live ? '#ff3b3b' : '#7a4fb8'; ctx.lineWidth = 3; ctx.strokeRect(b.x + 1.5, b.y + 1.5, b.w - 3, b.h - 3);
+  spr('twitch', 0, b.x + 10, b.y + 11, false, 40, 40);
+  ctx.textAlign = 'left'; ctx.font = 'bold 14px monospace'; ctx.fillStyle = '#f4ecff'; ctx.fillText(TWITCH.login, b.x + 58, b.y + 26);
+  ctx.font = '12px monospace';
+  if (TWITCH.live) {
+    const pulse = 0.6 + 0.4 * Math.sin(t * 5);
+    ctx.fillStyle = `rgba(255,60,60,${pulse})`; ctx.beginPath(); ctx.arc(b.x + 66, b.y + 44, 4, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ff8a8a'; ctx.fillText('В ЭФИРЕ' + (TWITCH.uptime ? '  ' + TWITCH.uptime : ''), b.x + 76, b.y + 48);
+  } else if (TWITCH.live === false) {
+    ctx.fillStyle = '#8a7a9a'; ctx.beginPath(); ctx.arc(b.x + 66, b.y + 44, 4, 0, 7); ctx.fill();
+    ctx.fillStyle = '#b0a0c0'; ctx.fillText('не в эфире', b.x + 76, b.y + 48);
+  } else { ctx.fillStyle = '#8a7a9a'; ctx.fillText('twitch.tv', b.x + 62, b.y + 48); }
+  if (TWITCH.live && TWITCH.title) { // название стрима под бейджем
+    ctx.fillStyle = 'rgba(30,10,45,0.75)'; ctx.fillRect(b.x, b.y + b.h + 4, b.w, 22);
+    ctx.fillStyle = '#e0d0f0'; ctx.font = '11px monospace'; ctx.fillText(TWITCH.title.slice(0, 26) + (TWITCH.title.length > 26 ? '…' : ''), b.x + 8, b.y + b.h + 19);
+  }
+  ctx.restore();
+}
 const AUTHOR = { name: 'Nelfias', url: 'https://t.me/nelfias_cosph' };
 const AUTHOR_BTN = { x: W - 190, y: H - 76, w: 178, h: 22 }; // над кромкой лавы
 let authorHover = false;
@@ -666,7 +804,7 @@ function drawAuthor() {
 
 function startGame() {
   G = {
-    t: 0, camX: 0, speed: 200, score: 0, crystals: 0, coins: 0, dist: 0, stomps: 0, hits: 0, achT: 0, missedCrystals: 0, gapCrystals: 0, hp1Score: -1,
+    t: 0, camX: 0, speed: 200, score: 0, crystals: 0, coins: 0, dist: 0, stomps: 0, hits: 0, achT: 0, missedCrystals: 0, gapCrystals: 0, hp1Score: -1, hp1T: -1, lavaDeath: false,
     plats: [], items: [], enemies: [], parts: [], texts: [],
     genX: 0, lastY: LEVELS[0], rnd: mulberry(Date.now() & 0xffff),
     p: { x: 120, y: 300, w: 30, h: 66, vx: 0, vy: 0, ground: false, jumps: 0, hp: 5, inv: 0, anim: 0, face: 1, dead: false, deadT: 0 },
@@ -675,6 +813,7 @@ function startGame() {
   // стартовая площадка
   addPlat(-200, LEVELS[0], 900); G.genX = 700; G.lastY = LEVELS[0];
   state = 'play'; MUSIC.start(); SFX.confirm(); newAch = 0;
+  lockLandscape();
 }
 function togglePause() {
   if (state === 'play') { state = 'pause'; MUSIC.pause(); }
@@ -741,7 +880,7 @@ function burst(x, y, col, n = 10, spd = 200) {
 function hurt(p, kx) {
   if (p.inv > 0 || p.dead) return;
   p.hp--; p.inv = 1.6; p.vy = -420; p.vx = kx; G.shake = 0.35; G.hudFlash = 0.4; G.hits++;
-  if (p.hp === 1) G.hp1Score = G.score; // для «Феникса»: очки с момента последнего сердца
+  if (p.hp === 1) { G.hp1Score = G.score; G.hp1T = G.t; } // «Феникс» и «Не сегодня»: с момента последнего сердца
   SFX.hurt(); burst(p.x + p.w / 2, p.y + p.h / 2, '#ff4040', 12);
   if (p.hp <= 0) die();
 }
@@ -749,7 +888,7 @@ function die() {
   const p = G.p; if (p.dead) return;
   p.dead = true; p.deadT = 0; p.vy = -500; SFX.dead(); G.shake = 0.6; MUSIC.stop();
   if (G.score > best) { best = Math.floor(G.score); localStorage.setItem('hellka_best', best); }
-  STATS.runs++; STATS.deaths++; STATS.crystals += G.crystals; STATS.coins += G.coins; STATS.stomps += G.stomps; STATS.dist += Math.floor(G.dist / 10);
+  STATS.runs++; STATS.deaths++; if (G.lavaDeath) STATS.lavaDeaths++; STATS.crystals += G.crystals; STATS.coins += G.coins; STATS.stomps += G.stomps; STATS.dist += Math.floor(G.dist / 10);
   saveStats(); checkAch(true);
 }
 
@@ -820,7 +959,7 @@ function update(dt) {
     for (const pl of g.plats) for (const s of pl.spikes)
       if (p.x + p.w - 6 > s.x && p.x + 6 < s.x + s.w && p.y + p.h > pl.y - 20 && p.y + p.h <= pl.y + 4) hurt(p, g.speed - 250);
     // лава
-    if (p.y + p.h > LAVA_Y + 20) { burst(p.x + p.w / 2, LAVA_Y, '#ffb03a', 20, 260); p.hp = 0; die(); }
+    if (p.y + p.h > LAVA_Y + 20) { burst(p.x + p.w / 2, LAVA_Y, '#ffb03a', 20, 260); p.hp = 0; G.lavaDeath = true; die(); }
     p.anim += dt * (8 + g.speed / 60);
   }
 
@@ -938,7 +1077,7 @@ function drawHud() {
   spr('portrait', 0, 16, 14);
   for (let i = 0; i < 5; i++) spr('heart', i < g.p.hp ? 0 : 1, 84 + i * 32, 16);
   ctx.fillStyle = '#f0e0e0'; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('Хеллка', 84, 64);
+  ctx.fillText(SKINS[skin].name, 84, 64);
   spr('crystal', 0, W - 300, 14, false, 18, 26); ctx.fillText('x ' + g.crystals, W - 276, 36);
   spr('coin', 0, W - 300, 44, false, 20, 20);   ctx.fillText('x ' + g.coins, W - 276, 62);
   ctx.textAlign = 'right'; ctx.font = 'bold 26px monospace'; ctx.fillStyle = '#ffe680';
@@ -1000,17 +1139,18 @@ function centerText(s, y, size, col, bold = true) {
 }
 function drawMenu(t) {
   drawBg(t * 60, t); drawLava(t * 60, t);
-  spr('player_run', t * 10, W / 2 - MANIFEST.player_run.w / 2, 322 - MANIFEST.player_run.h);
-  panel(W / 2 - 300, 52, 600, 176);
+  drawSkinPicker(W / 2, 316, t);
+  panel(W / 2 - 236, 52, 472, 176); // зазор до бейджа Twitch слева
   drawTitle(W / 2, 148, 96, t);
-  centerText('бесконечный платформер', 192, 20, '#f0c0c0', false);
-  centerText('ПРОБЕЛ / ТАП — начать', 362, 24, '#ffe680');
-  centerText('← → двигаться   •   пробел / ↑ прыжок (двойной)   •   P пауза   •   M звук', 396, 15, '#d0b0b8', false);
-  centerText('кристалл +10   монета +5   бес (прыжок сверху) +25   лава = смерть', 418, 15, '#d0b0b8', false);
+  centerText('Пробежка по Чертовску', 192, 20, '#f0c0c0', false);
+  centerText('ПРОБЕЛ / ТАП — начать', 372, 24, '#ffe680');
+  centerText('← → двигаться   •   пробел / ↑ прыжок (двойной)   •   P пауза   •   M звук', 400, 15, '#d0b0b8', false);
+  centerText('кристалл +10   монета +5   бес (прыжок сверху) +25   лава = смерть', 420, 15, '#d0b0b8', false);
   drawSliders(444);
   if (best) centerText('рекорд: ' + best, 216, 17, '#ffb0a8');
   drawAchButton(ACH_BTN);
   drawAuthor();
+  drawTwitch(t, 1 / 60);
 }
 function drawOver() {
   drawBg(G.camX, G.t); drawLava(G.camX, G.t); drawWorld();
@@ -1031,6 +1171,7 @@ function loop(ts) {
   if (state === 'menu' || (state === 'ach' && achFrom === 'menu')) {
     menuT += dt; drawMenu(menuT);
     if (state === 'ach') { drawAchScreen(); jumpPressed = false; return; }
+    drawToasts(dt);
     if (jumpPressed) { jumpPressed = false; startGame(); }
     return;
   }
@@ -1045,10 +1186,11 @@ function loop(ts) {
   if (state === 'ach') { drawAchScreen(); return; } // открыт из паузы
   if (state === 'pause') {
     ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H);
-    panel(W / 2 - 230, 152, 460, 236);
-    centerText('ПАУЗА', 200, 40, '#fff'); centerText('P / тап вне панели — продолжить', 228, 15, '#ddd', false);
-    drawSliders(262);
+    panel(W / 2 - 230, 120, 460, 322);
+    centerText('ПАУЗА', 168, 40, '#fff'); centerText('P / тап вне панели — продолжить', 196, 15, '#ddd', false);
+    drawSliders(230);
     drawAchButton(ACH_BTN_PAUSE);
+    drawSkinPicker(W / 2, 410, G.t + menuT);
   }
 }
 loadAssets().then(() => requestAnimationFrame(loop));
@@ -1056,5 +1198,5 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {}));
 }
 // отладочный хук (для автотестов из консоли)
-window.HELLKA = { get G() { return G; }, get state() { return state; }, start: startGame, jump: () => { jumpPressed = true; }, step: dt => { if (state === 'play') update(dt); }, keys, tb, MUSIC, SFX_EL, ACH, unlocked, STATS, toasts, setState: v => { state = v; } };
+window.HELLKA = { get G() { return G; }, get state() { return state; }, start: startGame, jump: () => { jumpPressed = true; }, step: dt => { if (state === 'play') update(dt); }, keys, tb, MUSIC, SFX_EL, ACH, unlocked, STATS, toasts, setState: v => { state = v; }, TWITCH, SKINS, SKIN_IMG, applySkin, nextSkin, get skin() { return skin; } };
 })();

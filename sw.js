@@ -1,5 +1,5 @@
 // Сгенерировано tools/build_assets.py — не править руками
-const CACHE = 'hellka-0420770d2b';
+const CACHE = 'hellka-13e6bdd06c';
 const FILES = [
 "./",
 "index.html",
@@ -33,13 +33,17 @@ const FILES = [
 "assets/spike.png",
 "assets/tile.png",
 "assets/title.png",
+"assets/twitch.png",
 "assets/ach/coins_50.png",
 "assets/ach/crystals_50.png",
+"assets/ach/crystals_666.png",
 "assets/ach/daredevil.png",
 "assets/ach/deaths_10.png",
 "assets/ach/first_run.png",
 "assets/ach/ghost.png",
 "assets/ach/hidden.png",
+"assets/ach/last_heart_60.png",
+"assets/ach/lava_66.png",
 "assets/ach/marathon.png",
 "assets/ach/midnight.png",
 "assets/ach/no_hit_500.png",
@@ -49,10 +53,13 @@ const FILES = [
 "assets/ach/score_1000.png",
 "assets/ach/score_2500.png",
 "assets/ach/score_500.png",
+"assets/ach/score_666.png",
+"assets/ach/score_6666.png",
 "assets/ach/speed_2.png",
 "assets/ach/speed_max.png",
 "assets/ach/stomp_10.png",
 "assets/ach/survive_60.png",
+"assets/ach/visit.png",
 "assets/fonts/Lobster-Regular.ttf",
 "assets/sfx/coin.wav",
 "assets/sfx/confirm.wav",
@@ -62,7 +69,12 @@ const FILES = [
 "assets/sfx/hurt.wav",
 "assets/sfx/jump.wav",
 "assets/sfx/step.wav",
-"assets/sfx/stomp.wav"
+"assets/sfx/stomp.wav",
+"assets/skins/dark/player_dead.png",
+"assets/skins/dark/player_hurt.png",
+"assets/skins/dark/player_jump.png",
+"assets/skins/dark/player_run.png",
+"assets/skins/dark/portrait.png"
 ];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

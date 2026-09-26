@@ -22,6 +22,7 @@
 | `bg_far.png` | 1 | 16:9, прозрачное небо | Дальний слой: замок, горы, мосты, лава на прозрачном фоне. **Бесшовный по горизонтали**, без луны |
 | `bg_mid.png` | 1 | 16:9, прозрачный верх | Ближний слой параллакса: тёмные скалы, знамёна с трезубцем, цепи. Бесшовный по горизонтали |
 | `portrait.png` | 1 | 1:1 | Портрет Хеллки для HUD, в рамке |
+| `twitch.png` | 1 | 1:1 | Иконка бейджа канала в меню (40×40 в игре). Пока нет — рисуется фиолетовый значок кодом |
 
 ## Сборка из сырых генераций
 
@@ -117,11 +118,21 @@ Pixel art seamless horizontally tileable parallax layer, 1920x1080, on a transpa
 Pixel art seamless horizontally tileable parallax foreground layer, 1920x1080, transparent background wherever there is no rock: dark volcanic rock spires and cliffs in the bottom third, hanging iron chains and red banners with a trident emblem from the top edge, a stone gargoyle head. No characters, no text. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette, dark fantasy hell theme with crimson / black / orange accents, game asset layer.
 ```
 
+### twitch.png
+
+```
+Pixel art icon for a streamer badge, square, single centered object: a purple speech-bubble shaped like the Twitch glitch logo with two small red devil horns on top and two white rectangular eyes, slight glow. Purple / white / red palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+
 ### portrait.png
 
 ```
 Pixel art square avatar icon, close-up of chibi anime devil girl "Hellka": long bright red hair, small red horns, big blue eyes, slight smirk, dark stone frame border around the icon. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette, dark fantasy hell theme with crimson / black / orange accents, game HUD icon.
 ```
+
+## Скины
+
+Второй скин («Княжна Тьмы», тёмный образ) собирается из `assets_raw/dark_skin/`: GIF-ы бега (8 кадров), прыжка, удара и смерти из PixelLab плюс `avatar.png` для портрета. Скрипт ищет файлы по подстрокам `running`, `jump`, `punch`, `death`, `avatar` и кладёт результат в `assets/skins/dark/`. Перекраска волос и рожек к этому скину не применяется. Открывается за достижение «Легенда ада» (2500 очков), переключается кнопкой в меню и паузе или клавишей S.
 
 ## Иконки достижений
 
@@ -143,6 +154,12 @@ Pixel art square avatar icon, close-up of chibi anime devil girl "Hellka": long 
 | `survive_60.png` | Минута в аду | 60 секунд |
 | `no_hit_500.png` | Без царапины | 500 очков без урона |
 | `deaths_10.png` | Упорство | 10 смертей суммарно |
+| `score_666.png` | Княжулечка Тьмулички | закончить забег ровно с 666 очками |
+| `score_6666.png` | Княжка Тьмы | 6666 очков за забег |
+| `crystals_666.png` | Три шестёрки | 666 кристаллов за всё время |
+| `last_heart_60.png` | Не сегодня | 60 секунд на последнем сердце |
+| `visit.png` | Заглянуть в гости (скрытое) | клик по бейджу канала во время эфира |
+| `lava_66.png` | Купание (скрытое) | 66 смертей в лаве суммарно |
 | `hidden.png` | ??? | заглушка для ещё не открытых скрытых достижений |
 | `ghost.png` | Призрак (скрытое) | 2000 очков без урона |
 | `pacifist.png` | Пацифистка (скрытое) | 90 секунд, не тронув ни беса |
@@ -201,6 +218,30 @@ Pixel art achievement badge icon, square, single centered object: a red heart in
 Pixel art achievement badge icon, square, single centered object: a small cute skull with tiny red devil horns and a cheeky grin. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
 ```
 
+### score_666.png
+```
+Pixel art achievement badge icon, square, single centered object: a tiny cute devil girl chibi face with a small golden tiara, winking, the number 666 in small glowing red digits below. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing.
+```
+### score_6666.png
+```
+Pixel art achievement badge icon, square, single centered object: a tall dark gothic crown with red gems and devil horns, a purple-black aura behind it, the number 6666 in small glowing red digits below. Dark stone frame border, crimson, purple and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing.
+```
+### crystals_666.png
+```
+Pixel art achievement badge icon, square, single centered object: three glowing red crystals arranged in a triangle with the number 666 formed by tiny sparks between them. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing.
+```
+### last_heart_60.png
+```
+Pixel art achievement badge icon, square, single centered object: a single cracked red heart held together by golden bandages, still beating with a small glow. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### visit.png
+```
+Pixel art achievement badge icon, square, single centered object: a small purple Twitch-style speech bubble with devil horns knocking on a wooden door with a glowing red keyhole. Dark stone frame border, purple, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+### lava_66.png
+```
+Pixel art achievement badge icon, square, single centered object: a cute devil girl chibi relaxing in a bubbling lava pool like a hot spring, only her head with horns and a tiny towel visible, steam rising. Dark stone frame border, crimson, orange and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
 ### hidden.png
 ```
 Pixel art achievement badge icon, square, single centered object: a large glowing question mark carved into dark stone, faint red smoke around it. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.

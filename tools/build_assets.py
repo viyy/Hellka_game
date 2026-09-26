@@ -58,7 +58,8 @@ def pad_frames(frames, anchor='bottom'):
         c.paste(f, (x, y), f); out.append(c)
     return out
 
-def save_sheet(name, frames, target_h=None, target_w=None):
+def save_sheet(name, frames, target_h=None, target_w=None, out=None, man=None):
+    out = out or OUT; man = manifest if man is None else man; os.makedirs(out, exist_ok=True)
     frames = pad_frames(frames)
     fw, fh = frames[0].size
     if target_h: s = target_h / fh
@@ -67,11 +68,11 @@ def save_sheet(name, frames, target_h=None, target_w=None):
     sheet = Image.new('RGBA', (tw * len(frames), th), (0, 0, 0, 0))
     for i, f in enumerate(frames):
         sheet.paste(f.resize((tw, th), Image.LANCZOS), (i * tw, 0))
-    sheet.save(os.path.join(OUT, name + '.png'))
-    manifest[name] = {'frames': len(frames), 'w': tw, 'h': th}
-    print(f'{name:14s} {len(frames)} x {tw}x{th}')
+    sheet.save(os.path.join(out, name + '.png'))
+    man[name] = {'frames': len(frames), 'w': tw, 'h': th}
+    print(f'{name:14s} {len(frames)} x {tw}x{th}' + ('' if out == OUT else f'  → {os.path.relpath(out, OUT)}'))
 
-def gif_frames(path, pick=None):
+def gif_frames(path, pick=None, recolor=True):
     im = Image.open(path); frames = []
     for k in range(im.n_frames):
         im.seek(k); frames.append(im.convert('RGBA'))
@@ -79,7 +80,7 @@ def gif_frames(path, pick=None):
     bb = None
     for f in frames:
         b = alpha_bbox(f); bb = b if bb is None else (min(bb[0], b[0]), min(bb[1], b[1]), max(bb[2], b[2]), max(bb[3], b[3]))
-    frames = [f.crop(bb) for f in frames]
+    frames = [recolor_player(f.crop(bb)) if recolor else f.crop(bb) for f in frames]
     if pick is not None: frames = [frames[i] for i in pick]
     return frames
 
@@ -89,6 +90,31 @@ def seamless(im, size):
     out = Image.new('RGBA', (size[0] * 2, size[1]))
     out.paste(im, (0, 0)); out.paste(im.transpose(Image.FLIP_LEFT_RIGHT), (size[0], 0))
     return out
+
+# ── перекраска персонажа под референс: волосы рыжее и светлее, рожки красно-розовые ──
+import colorsys
+HORN_DARK = (110, 20, 55); HORN_LIGHT = (240, 105, 135)
+def recolor_player(fr):
+    """fr — RGBA-кадр. Исходники не меняются, перекраска только на выходе."""
+    fr = fr.convert('RGBA'); px = fr.load(); w, h = fr.size
+    top = next((y for y in range(h) if any(px[x, y][3] > 0 for x in range(w))), 0)
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a == 0: continue
+            hh, ss, vv = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+            mx = max(r, g, b)
+            # рожки: тёмные малонасыщенные (серо-фиолетовые) пиксели у самой макушки; чистую чёрную обводку не трогаем
+            if y < top + 10 and mx < 90 and mx > 8 and ss < 0.75:
+                k = mx / 78
+                px[x, y] = tuple(int(HORN_DARK[i] + (HORN_LIGHT[i] - HORN_DARK[i]) * min(1, k)) for i in range(3)) + (a,)
+                continue
+            # волосы и хвост: насыщенный красный → оттенок к оранжевому, светлее
+            if ss >= 0.55 and (hh >= 330 / 360 or hh <= 20 / 360) and mx > 60:
+                hh = (hh + 11 / 360) % 1.0; vv = min(1.0, vv * 1.13); ss = ss * 0.92
+                r2, g2, b2 = colorsys.hsv_to_rgb(hh, ss, vv)
+                px[x, y] = (int(r2 * 255), int(g2 * 255), int(b2 * 255), a)
+    return fr
 
 # ── персонаж (PixelLab GIF) ──
 S = 72 / 58  # масштаб: рост в беге 58px → 72 логических
@@ -100,6 +126,25 @@ dead = gif_frames(raw('Idle_falling-back-death_east'))
 save_sheet('player_dead', dead, target_h=round(dead[0].height * S))
 hurt = gif_frames(raw('side_view_running_cy_taking-punch_north-east'), pick=[2])
 save_sheet('player_hurt', hurt, target_h=round(hurt[0].height * S))
+
+# ── дополнительные скины: assets_raw/<папка>/ → assets/skins/<id>/ (без перекраски) ──
+SKIN_DIRS = {'dark': 'dark_skin'}
+def raw_in(d, sub):
+    for f in sorted(os.listdir(d)):
+        if sub in f.lower() and f.lower().endswith(('.gif', '.png')): return os.path.join(d, f)
+    return None
+for sid, sub in SKIN_DIRS.items():
+    d = os.path.join(RAW, sub)
+    if not os.path.isdir(d): print(f'скин {sid}: папки {sub} нет, пропускаю'); continue
+    out = os.path.join(OUT, 'skins', sid); man = manifest.setdefault('skins', {}).setdefault(sid, {})
+    srcs = {'run': raw_in(d, 'running-8') or raw_in(d, 'running_east') or raw_in(d, 'run'), 'jump': raw_in(d, 'jump'), 'dead': raw_in(d, 'death'), 'hurt': raw_in(d, 'punch') or raw_in(d, 'hurt'), 'avatar': raw_in(d, 'avatar') or raw_in(d, 'portrait')}
+    missing = [k for k, v in srcs.items() if not v]
+    if missing: print(f'скин {sid}: нет файлов {missing}, пропускаю'); manifest['skins'].pop(sid, None); continue
+    fr = gif_frames(srcs['run'], recolor=False);  save_sheet('player_run', fr, target_h=round(fr[0].height * S), out=out, man=man)
+    fr = gif_frames(srcs['jump'], recolor=False); save_sheet('player_jump', fr, target_h=round(fr[0].height * S), out=out, man=man)
+    fr = gif_frames(srcs['dead'], recolor=False); save_sheet('player_dead', fr, target_h=round(fr[0].height * S), out=out, man=man)
+    fr = gif_frames(srcs['hurt'], pick=[2], recolor=False); save_sheet('player_hurt', fr, target_h=round(fr[0].height * S), out=out, man=man)
+    Image.open(srcs['avatar']).convert('RGBA').resize((56, 56), Image.LANCZOS).save(os.path.join(out, 'portrait.png')); man['portrait'] = {'frames': 1, 'w': 56, 'h': 56}
 
 # ── спрайты на прозрачном фоне ──
 def rgba(prefix):
@@ -163,12 +208,20 @@ if tsrc:
 elif os.path.exists(os.path.join(OUT, 'title.png')):
     os.remove(os.path.join(OUT, 'title.png'))
 
+# ── иконка бейджа Twitch (необязательно): assets_raw/twitch.png → assets/twitch.png 40x40 ──
+tw = raw_named('twitch.png')
+if tw:
+    im = chroma_key(Image.open(tw)); bb = alpha_bbox(im)
+    if bb: im = im.crop(bb)
+    m = max(im.size); sq = Image.new('RGBA', (m, m), (0, 0, 0, 0)); sq.paste(im, ((m - im.width) // 2, (m - im.height) // 2), im)
+    sq.resize((40, 40), Image.LANCZOS).save(os.path.join(OUT, 'twitch.png')); manifest['twitch'] = {'frames': 1, 'w': 40, 'h': 40}; print('twitch 40x40')
+
 # ── портрет ──
-por = Image.open(raw('eefea498')).convert('RGBA').resize((56, 56), Image.LANCZOS)
+por = Image.open(raw_named('avatar.png', 'eefea498')).convert('RGBA').resize((56, 56), Image.LANCZOS)  # assets_raw/avatar.png, иначе старая генерация
 por.save(os.path.join(OUT, 'portrait.png')); manifest['portrait'] = {'frames': 1, 'w': 56, 'h': 56}
 
 # ── favicon из портрета ──
-src = Image.open(raw('eefea498')).convert('RGBA')
+src = Image.open(raw_named('avatar.png', 'eefea498')).convert('RGBA')
 w, h = src.size; m = int(min(w, h) * 0.86); src = src.crop(((w - m) // 2, (h - m) // 2 - m // 12, (w + m) // 2, (h + m) // 2 - m // 12))  # лицо крупнее
 src.resize((180, 180), Image.LANCZOS).save(os.path.join(ROOT, 'apple-touch-icon.png'))
 src.resize((32, 32), Image.LANCZOS).save(os.path.join(ROOT, 'favicon-32.png'))
@@ -239,7 +292,7 @@ print('og.png 1200x630')
 
 # ── иконки достижений: assets_raw/ach/<id>.png → assets/ach/<id>.png 64x64 ──
 ACH_IDS = ['first_run', 'score_500', 'score_1000', 'score_2500', 'crystals_50', 'coins_50', 'stomp_10', 'speed_2', 'speed_max', 'survive_60', 'no_hit_500', 'deaths_10',
-           'ghost', 'pacifist', 'perfectionist', 'phoenix', 'daredevil', 'marathon', 'midnight', 'hidden']
+           'score_666', 'score_6666', 'crystals_666', 'last_heart_60', 'visit', 'lava_66', 'ghost', 'pacifist', 'perfectionist', 'phoenix', 'daredevil', 'marathon', 'midnight', 'hidden']
 ach_raw = next((os.path.join(RAW, d) for d in ('ach', 'achiv', 'achievements') if os.path.isdir(os.path.join(RAW, d))), os.path.join(RAW, 'ach')); ach_out = os.path.join(OUT, 'ach'); os.makedirs(ach_out, exist_ok=True); n_ach = 0
 for aid in ACH_IDS:
     src_p = os.path.join(ach_raw, aid + '.png')

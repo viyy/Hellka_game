@@ -46,9 +46,15 @@
          pointer-events: auto; user-select: none; -webkit-user-select: none; touch-action: none; -webkit-touch-callout: none; }
   .btn:active, .btn.down { background: rgba(200,60,60,.55); }
   #bl { left: 3vh; } #br { left: calc(6vh + 15vh); } #bj { right: 3vh; }
+  /* подсказка в портретной ориентации на тач-устройствах */
+  #rotate { display: none; position: fixed; inset: 0; z-index: 10; background: #12060c; color: #f0d0d0;
+            align-items: center; justify-content: center; text-align: center; font-size: 22px; line-height: 1.5; padding: 24px; }
+  #rotate b { display: block; font-size: 64px; margin-bottom: 12px; }
+  @media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
 </style>
 </head>
 <body>
+<div id="rotate"><div><b>↻</b>Поверни телефон горизонтально</div></div>
 <div id="wrap"><canvas id="game" width="960" height="540"></canvas></div>
 <div id="touch">
   <div class="btn" id="bl">◀</div>
