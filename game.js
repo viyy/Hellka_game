@@ -31,6 +31,7 @@ const MANIFEST = {
   portrait:    { frames: 1, w: 56, h: 56 },
   title:       { frames: 1, w: 560, h: 150 }, // сгенерированный логотип (необязательно)
   twitch:      { frames: 1, w: 40, h: 40 },   // иконка бейджа канала (необязательно)
+  shop:        { frames: 1, w: 24, h: 24 },   // иконка лавки (необязательно, иначе кошель кодом)
   pw_heart:    { frames: 1, w: 30, h: 30 },   // усиления (assets/pw_*.png, иначе заглушки)
   pw_shield:   { frames: 1, w: 30, h: 30 },
   pw_magnet:   { frames: 1, w: 30, h: 30 },
@@ -349,6 +350,21 @@ function makeBgMid() {
   for (let i = 0; i < 4; i++) { const x = 120 + i * 260 + rnd() * 60; g.fillRect(x, 0, 30, 90 + rnd() * 60); g.fillStyle = '#7a1420'; g.fillRect(x + 12, 20, 6, 30); g.fillStyle = '#5a0e14'; }
   return c;
 }
+function makeShopIcon() { // кошель с золотой завязкой
+  return pix(`
+....KKKK....
+...KYYYYK...
+..KOYYYYOK..
+...KKOOKK...
+..KDDDDDDK..
+.KDDDDDDDDK.
+KDDDDRDDDDDK
+KDDDRRRDDDDK
+KDDDDRDDDDDK
+.KDDDDDDDDK.
+..KDDDDDDK..
+...KKKKKK...`, { K: '#1b1b22', Y: '#ffd23a', O: '#d98a00', D: '#8a4a2a', R: '#ff2d2d' }, 2);
+}
 function makeTwitchIcon() {
   const c = document.createElement('canvas'); c.width = 40; c.height = 40; const g = c.getContext('2d');
   g.fillStyle = '#9146ff'; g.fillRect(6, 8, 28, 22); g.fillRect(10, 30, 6, 6); g.fillRect(6, 4, 28, 4);
@@ -444,6 +460,7 @@ function fallback(key) {
     case 'portrait':    return makePortrait();
     case 'title':       return null; // нет файла — заголовок рисуется процедурно (drawTitle)
     case 'twitch':      return makeTwitchIcon();
+    case 'shop':        return makeShopIcon();
     case 'pw_heart':    return makePwIcon('#ff3b5c', '♥');
     case 'pw_shield':   return makePwIcon('#4fa3ff', '◈');
     case 'pw_magnet':   return makePwIcon('#ff8a2a', 'U');
@@ -611,6 +628,13 @@ addEventListener('keydown', e => {
   if (['ArrowLeft','ArrowRight','ArrowUp','Space','KeyA','KeyD','KeyW'].includes(e.code)) e.preventDefault();
   if (!keys[e.code] && (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW')) jumpPressed = true;
   keys[e.code] = true;
+  if (state === 'shop') {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') shopMove(-1, 0); else if (e.code === 'ArrowRight' || e.code === 'KeyD') shopMove(1, 0);
+    else if (e.code === 'ArrowUp' || e.code === 'KeyW') shopMove(0, -1); else if (e.code === 'ArrowDown' || e.code === 'KeyS') shopMove(0, 1);
+    else if (e.code === 'Enter' || e.code === 'Space') shopActivate(shopSel); else if (e.code === 'Escape' || e.code === 'KeyL') closeShop();
+    jumpPressed = false; return;
+  }
+  if (state === 'menu' && e.code === 'KeyL') { openShop(); return; }
   if (state === 'ach' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { achFlip(e.code === 'ArrowLeft' ? -1 : 1); return; }
   if (state === 'ach' && ['Escape', 'Enter', 'Space', 'KeyA', 'KeyP'].includes(e.code)) { closeAch(); return; }
   if ((state === 'menu' || state === 'pause') && e.code === 'KeyA') { openAch(state); return; }
@@ -674,6 +698,8 @@ cv.addEventListener('pointerdown', e => {
   const si = sliderAt(p);
   if (si >= 0) { dragSlider = si; sliderSet(si, p); cv.setPointerCapture(e.pointerId); if (SLIDERS[si].key === 'sfx') SFX.coin(); return; }
   if (state === 'ach') { if (inBtn(p, ACH_PREV)) { achFlip(-1); return; } if (inBtn(p, ACH_NEXT)) { achFlip(1); return; } closeAch(); return; }
+  if (state === 'shop') { const i = SHOP_ITEMS.findIndex((it, k) => inBtn(p, shopCard(k))); if (i >= 0) shopActivate(i); else closeShop(); return; }
+  if (state === 'menu' && inBtn(p, SHOP_BTN)) { openShop(); return; }
   if (state === 'menu' && inBtn(p, ACH_BTN)) { openAch('menu'); return; }
   if (state === 'menu' && inBtn(p, STATS_BTN)) { state = 'stats'; SFX.confirm(); return; }
   if (state === 'stats') { state = 'menu'; return; }
@@ -714,11 +740,15 @@ function pollGamepad() {
   const edge = i => { const v = b(i), was = !!gp.prev[i]; gp.prev[i] = v; return v && !was; };
   const jumpEdge = (() => { const v = gp.jump, was = !!gp.prev.j; gp.prev.j = v; return v && !was; })();
   if (jumpEdge) jumpPressed = true;
-  const eStart = edge(9), eA = edge(0), eB = edge(1), eX = edge(2), eY = edge(3), eLB = edge(4), eRB = edge(5), eL = edge(14), eR = edge(15);
+  const eStart = edge(9), eA = edge(0), eB = edge(1), eX = edge(2), eY = edge(3), eLB = edge(4), eRB = edge(5), eL = edge(14), eR = edge(15), eU = edge(12), eD = edge(13), eSel = edge(8);
+  const sEdge = (k, v) => { const was = !!gp.prev[k]; gp.prev[k] = v; return v && !was; }; // фронты стика для меню
+  const sL = sEdge('sl', ax < -0.6), sR = sEdge('sr', ax > 0.6), sU = sEdge('su', (g.axes[1] || 0) < -0.6), sD = sEdge('sd', (g.axes[1] || 0) > 0.6);
   if (cardShown && (eA || eB || eStart)) { cardShown = null; jumpPressed = false; return; }
   if (state === 'ach') { if (eLB || eL) achFlip(-1); if (eRB || eR) achFlip(1); if (eB || eStart || eY) closeAch(); jumpPressed = false; return; }
   if (state === 'stats') { if (eB || eStart || eA) state = 'menu'; jumpPressed = false; return; }
+  if (state === 'shop') { if (eL || sL) shopMove(-1, 0); if (eR || sR) shopMove(1, 0); if (eU || sU) shopMove(0, -1); if (eD || sD) shopMove(0, 1); if (eA) shopActivate(shopSel); if (eB || eStart) closeShop(); jumpPressed = false; return; }
   if (state === 'menu') {
+    if (eSel) { openShop(); return; }
     if (eStart) { jumpPressed = false; startGame('endless'); return; }
     if (eX) { jumpPressed = false; startGame('daily'); return; }
     if (eY) { openAch('menu'); return; }
@@ -786,6 +816,8 @@ const ACH = [
   { id: 'last_heart_60',t: 'Не сегодня',     d: '60 секунд на последнем сердце',     f: r => r.p.hp === 1 && r.hp1T >= 0 && r.t - r.hp1T >= 60 },
   { id: 'combo_40',     t: 'Без промаха',    d: 'Комбо 20 — множитель ×3',           f: r => r.comboMax >= 20 },
   // скрытые: условия и иконки не показываются, пока не открыты
+  { id: 'shop_first',   t: 'Транжира',       d: 'Первая покупка в лавке',            f: () => false }, // открываются покупками
+  { id: 'shop_all',     t: 'Коллекционерка', d: 'Скупить всю лавку',                 f: () => false },
   { id: 'ghost',        t: 'Призрак',        d: '2000 очков без единого урона',      hidden: true, f: r => r.score >= 2000 && r.hits === 0 },
   { id: 'pacifist',     t: 'Пацифистка',     d: '90 секунд, не тронув ни беса',      hidden: true, f: r => r.t >= 90 && r.stomps === 0 },
   { id: 'perfectionist',t: 'Перфекционистка',d: 'Минута без пропущенных кристаллов', hidden: true, f: r => r.t >= 60 && r.missedCrystals === 0 },
@@ -988,16 +1020,34 @@ function pickTileset(r) {
   return G.zoneTile;
 }
 
+// ───────────────────────── ЛАВКА: кошелёк и косметика ─────────────────────────
+// Кошелёк — все собранные кристаллы (STATS.crystals) минус потраченные; при смерти ничего не теряется.
+const SHOP = loadJSON('hellka_shop', { spent: 0, owned: {}, eq: { trail: '', dust: '', wisp: '' } });
+function saveShop() { localStorage.setItem('hellka_shop', JSON.stringify(SHOP)); }
+function shopBalance() { return Math.max(0, STATS.crystals - SHOP.spent); }
+const TRAILS = { // след за бегом: цвета, размер, вертикальная скорость, время жизни, частота (>1 — иногда по два, <1 — реже)
+  embers: { cols: ['#ffb03a', '#ff6a1e', '#ffe680'], s: [2, 4], vy: [-40, -100], life: [0.4, 0.7], rate: 1.4 },
+  petals: { cols: ['#ff9ac8', '#ffc0dc', '#ff6aa8'], s: [4, 5], vy: [-10, -40], life: [0.6, 0.9], rate: 0.8 },
+  ice:    { cols: ['#bff4ff', '#ffffff', '#7ae0ff'], s: [2, 3], vy: [-20, -60], life: [0.5, 0.8], rate: 1.6 },
+};
+const DUSTS = { ember: '#ff8a3a', frost: '#bfe8ff', shadow: '#9a5ad8' };
+const WISPS = { blue: '#5ad8ff', green: '#7aff9a', pink: '#ff7ad8' };
+function dustCol() { return DUSTS[SHOP.eq.dust] || '#8a7a80'; }
+function wispCol() { return WISPS[SHOP.eq.wisp] || SKINS[skin].wisp; }
+
 // ───────────────────────── СКИНЫ ─────────────────────────
 const SKINS = {
   default: { name: 'Хеллка',      dir: 'assets',            unlock: null, col: '#ff8a4a', wisp: '#ffb03a' },
   dark:    { name: 'Княжна Тьмы', dir: 'assets/skins/dark', unlock: 'score_2500', col: '#b04ad8', wisp: '#5ad8ff' }, // открывается за «Легенду ада»
   queen:   { name: 'Владычица Чертовска', dir: 'assets/skins/queen', unlock: 'score_6666', col: '#ffd23a', wisp: '#ff5a1e' }, // за «Княжну Тьмы»
+  frost:    { name: 'Ледяная Хеллка', dir: 'assets/skins/frost',    unlock: null, price: 1200, col: '#bfe8ff', wisp: '#7ae0ff' }, // лавка
+  cozy:     { name: 'Уютная Хеллка',  dir: 'assets/skins/cozy',     unlock: null, price: 1500, col: '#ffb0d0', wisp: '#ff9ac8' },
+  streamer: { name: 'Стримерша',      dir: 'assets/skins/streamer', unlock: null, price: 2000, col: '#c06aff', wisp: '#ff5ad8' },
 };
 const SKIN_KEYS = ['player_run', 'player_jump', 'player_dead', 'player_hurt', 'portrait'];
 const SKIN_IMG = {};
 let skin = localStorage.getItem('hellka_skin') || 'default';
-function skinUnlocked(id) { const s = SKINS[id]; return !!s && (!s.unlock || !!unlocked[s.unlock]); }
+function skinUnlocked(id) { const s = SKINS[id]; return !!s && (!s.unlock || !!unlocked[s.unlock]) && (!s.price || !!SHOP.owned['skin_' + id]); }
 function skinList() { return Object.keys(SKINS).filter(id => SKIN_IMG[id]); }
 async function loadSkins(ext) {
   SKIN_IMG.default = {};
@@ -1022,8 +1072,11 @@ function applySkin(id) {
 }
 function stepSkin(d) {
   const ids = skinList(); if (ids.length < 2) return;
-  const n = ids[(ids.indexOf(skin) + d + ids.length) % ids.length];
-  if (skinUnlocked(n)) { applySkin(n); SFX.confirm(); } else SFX.hurt();
+  for (let k = 1; k < ids.length; k++) { // ближайший открытый скин в эту сторону, закрытые пропускаем
+    const n = ids[(ids.indexOf(skin) + d * k + ids.length) % ids.length];
+    if (skinUnlocked(n)) { applySkin(n); SFX.confirm(); return; }
+  }
+  SFX.hurt();
 }
 function nextSkin() { stepSkin(1); }
 // стрелки по бокам от бегущего спрайта (меню и пауза); хит-зоны обновляются при каждой отрисовке
@@ -1032,15 +1085,99 @@ function drawSkinPicker(cx, feetY, t) {
   const m = MANIFEST.player_run;
   spr('player_run', t * 10, cx - m.w / 2, feetY - m.h);
   const ids = skinList(); if (ids.length < 2) return;
-  const prev = ids[(ids.indexOf(skin) - 1 + ids.length) % ids.length], next = ids[(ids.indexOf(skin) + 1) % ids.length];
+  const other = ids.some(id => id !== skin && skinUnlocked(id)); // список циклический: стрелки активны, если есть куда шагнуть
   SKIN_L.x = cx - 96; SKIN_L.y = feetY - 66; SKIN_R.x = cx + 52; SKIN_R.y = feetY - 66;
   ctx.textAlign = 'center'; ctx.font = 'bold 30px monospace';
   const bob = Math.sin(t * 4) * 2;
-  ctx.fillStyle = skinUnlocked(prev) ? '#ffe680' : '#5a4a52'; ctx.fillText('◀', SKIN_L.x + 22 - bob, SKIN_L.y + 42);
-  ctx.fillStyle = skinUnlocked(next) ? '#ffe680' : '#5a4a52'; ctx.fillText('▶', SKIN_R.x + 22 + bob, SKIN_R.y + 42);
+  ctx.fillStyle = other ? '#ffe680' : '#5a4a52'; ctx.fillText('◀', SKIN_L.x + 22 - bob, SKIN_L.y + 42);
+  ctx.fillStyle = other ? '#ffe680' : '#5a4a52'; ctx.fillText('▶', SKIN_R.x + 22 + bob, SKIN_R.y + 42);
   ctx.font = 'bold 15px monospace'; ctx.fillStyle = '#ffe680'; ctx.fillText(SKINS[skin].name, cx, feetY + 18);
-  if (!skinUnlocked(next)) { const req = ACH.find(a => a.id === SKINS[next].unlock); ctx.font = '11px monospace'; ctx.fillStyle = '#8a7a80'; ctx.fillText(SKINS[next].name + ': ' + (req ? req.t : '?'), cx, feetY + 33); }
 }
+// ───────────────────────── ЛАВКА: товары и экран ─────────────────────────
+const SHOP_ITEMS = [
+  { id: 'skin_frost',    kind: 'skin',  ref: 'frost',    price: 1200, d: 'скин: лёд и мех' },
+  { id: 'skin_cozy',     kind: 'skin',  ref: 'cozy',     price: 1500, d: 'скин: пижама' },
+  { id: 'skin_streamer', kind: 'skin',  ref: 'streamer', price: 2000, d: 'скин: наушники' },
+  { id: 'trail_embers',  kind: 'trail', ref: 'embers', name: 'Угольки',   price: 400, d: 'след: искры' },
+  { id: 'trail_petals',  kind: 'trail', ref: 'petals', name: 'Лепестки',  price: 400, d: 'след: лепестки' },
+  { id: 'trail_ice',     kind: 'trail', ref: 'ice',    name: 'Иней',      price: 400, d: 'след: льдинки' },
+  { id: 'dust_ember',    kind: 'dust',  ref: 'ember',  name: 'Жар',       price: 150, d: 'пыль: огонь' },
+  { id: 'dust_frost',    kind: 'dust',  ref: 'frost',  name: 'Изморозь',  price: 150, d: 'пыль: лёд' },
+  { id: 'dust_shadow',   kind: 'dust',  ref: 'shadow', name: 'Мгла',      price: 150, d: 'пыль: мгла' },
+  { id: 'wisp_blue',     kind: 'wisp',  ref: 'blue',   name: 'Синий огонёк',   price: 200, d: 'цвет огонька' },
+  { id: 'wisp_green',    kind: 'wisp',  ref: 'green',  name: 'Зелёный огонёк', price: 200, d: 'цвет огонька' },
+  { id: 'wisp_pink',     kind: 'wisp',  ref: 'pink',   name: 'Розовый огонёк', price: 200, d: 'цвет огонька' },
+];
+function crystalNum(n, x, y, size, col, align = 'left') { // число с иконкой кристалла перед ним
+  const h = Math.round(size * 1.15), w = Math.round(h * MANIFEST.crystal.w / MANIFEST.crystal.h), str = String(n);
+  ctx.font = `bold ${size}px monospace`; const tw = ctx.measureText(str).width, total = w + 5 + tw;
+  const x0 = align === 'right' ? x - total : align === 'center' ? x - total / 2 : x;
+  spr('crystal', 0, x0, y - h + 3, false, w, h);
+  ctx.textAlign = 'left'; ctx.fillStyle = col; ctx.fillText(str, x0 + w + 5, y);
+}
+function shopName(it) { return it.kind === 'skin' ? SKINS[it.ref].name : it.name; }
+function shopOwned(it) { return !!SHOP.owned[it.id]; }
+function shopEquipped(it) { return it.kind === 'skin' ? skin === it.ref : SHOP.eq[it.kind] === it.ref; }
+const SHOP_COLS = 4, SHOP_CARD = { w: 200, h: 118, gx: 12, gy: 12 }, SHOP_X0 = W / 2 - 418, SHOP_Y0 = 92;
+const SHOP_BTN = { x: W - 270, y: H - 58, w: 250, h: 40 };            // в меню (справа)
+let shopSel = 0, shopArmed = -1;
+function shopCard(i) { return { x: SHOP_X0 + (i % SHOP_COLS) * (SHOP_CARD.w + SHOP_CARD.gx), y: SHOP_Y0 + Math.floor(i / SHOP_COLS) * (SHOP_CARD.h + SHOP_CARD.gy), w: SHOP_CARD.w, h: SHOP_CARD.h }; }
+function openShop() { state = 'shop'; shopArmed = -1; SFX.confirm(); }
+function closeShop() { state = 'menu'; shopArmed = -1; jumpPressed = false; }
+function shopActivate(i) {
+  const it = SHOP_ITEMS[i]; if (!it) return; shopSel = i;
+  if (it.kind === 'skin' && !SKIN_IMG[it.ref]) { SFX.hurt(); return; } // ассеты скина не загрузились
+  if (it.kind === 'wisp' && !unlocked.crystals_666 && !shopOwned(it)) { SFX.hurt(); shopArmed = -1; return; } // огонька ещё нет — красить нечего
+  if (shopOwned(it)) { // куплено: надеть / снять
+    if (it.kind === 'skin') { if (skin !== it.ref) { applySkin(it.ref); SFX.confirm(); } }
+    else { SHOP.eq[it.kind] = shopEquipped(it) ? '' : it.ref; saveShop(); SFX.confirm(); }
+    shopArmed = -1; return;
+  }
+  if (shopBalance() < it.price) { SFX.hurt(); shopArmed = -1; return; }
+  if (shopArmed !== i) { shopArmed = i; SFX.coin(); return; } // первое нажатие — подтверждение, второе — покупка
+  SHOP.spent += it.price; SHOP.owned[it.id] = true; shopArmed = -1;
+  if (it.kind === 'skin') applySkin(it.ref); else SHOP.eq[it.kind] = it.ref;
+  saveShop(); SFX.crystal();
+  unlockAch(ACH.find(a => a.id === 'shop_first'));
+  if (SHOP_ITEMS.every(shopOwned)) unlockAch(ACH.find(a => a.id === 'shop_all'));
+}
+function shopMove(dx, dy) {
+  const n = SHOP_ITEMS.length, rows = Math.ceil(n / SHOP_COLS);
+  const c = (shopSel % SHOP_COLS + dx + SHOP_COLS) % SHOP_COLS, r = (Math.floor(shopSel / SHOP_COLS) + dy + rows) % rows;
+  const i = Math.min(n - 1, r * SHOP_COLS + c); if (i !== shopSel) { shopSel = i; shopArmed = -1; SFX.coin(); }
+}
+function drawShopIcon(it, x, y, t) { // превью 56×56
+  if (it.kind === 'skin') { const sk = SKIN_IMG[it.ref]; if (sk && sk.portrait) ctx.drawImage(sk.portrait.im, x, y, 56, 56); else { ctx.fillStyle = '#3a2030'; ctx.fillRect(x, y, 56, 56); } return; }
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x, y, 56, 56);
+  if (it.kind === 'trail') { const tr = TRAILS[it.ref]; for (let i = 0; i < 8; i++) { const ph = (t * 1.2 + i * 0.37) % 1, sz = tr.s[0] + (i % 2); ctx.globalAlpha = 1 - ph; ctx.fillStyle = tr.cols[i % tr.cols.length]; ctx.fillRect(x + 46 - ph * 38, y + 42 - ph * (6 + (i % 3) * 8), sz, sz); } }
+  else if (it.kind === 'dust') { ctx.fillStyle = DUSTS[it.ref]; for (let i = 0; i < 7; i++) { const ph = (t * 1.1 + i * 0.29) % 1; ctx.globalAlpha = 0.9 - ph * 0.9; ctx.fillRect(x + 10 + i * 6 + Math.sin(i * 2.1) * 3, y + 44 - ph * 24, 3, 3); } }
+  else if (it.kind === 'wisp') { const c = WISPS[it.ref], r = 6 + Math.sin(t * 8) * 1.2, wx = x + 28, wy = y + 28 + Math.sin(t * 3) * 3; ctx.globalAlpha = 0.35; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(wx, wy, r * 2.2, 0, 7); ctx.fill(); ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(wx, wy, r, 0, 7); ctx.fill(); ctx.fillStyle = '#fff8e0'; ctx.beginPath(); ctx.arc(wx - 1, wy - 1, r * 0.45, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+}
+function drawShopScreen(t) {
+  ctx.fillStyle = 'rgba(8,0,4,0.85)'; ctx.fillRect(0, 0, W, H);
+  panel(W / 2 - 440, 28, 880, H - 56);
+  centerText('ЛАВКА', 66, 30, '#ff4a4a');
+  crystalNum(shopBalance(), W / 2 + 416, 66, 18, '#ffe680', 'right');
+  ctx.textAlign = 'left'; ctx.font = '12px monospace'; ctx.fillStyle = '#c0a0a8'; ctx.fillText('кристаллы со всех забегов', W / 2 - 416, 66);
+  SHOP_ITEMS.forEach((it, i) => {
+    const c = shopCard(i), owned = shopOwned(it), eq = shopEquipped(it), can = shopBalance() >= it.price;
+    ctx.fillStyle = eq ? 'rgba(50,80,35,0.6)' : owned ? 'rgba(45,30,55,0.6)' : 'rgba(30,10,20,0.6)'; ctx.fillRect(c.x, c.y, c.w, c.h);
+    ctx.strokeStyle = i === shopSel ? '#ffe680' : eq ? '#7ad86a' : 'rgba(255,255,255,0.12)'; ctx.lineWidth = i === shopSel ? 2 : 1; ctx.strokeRect(c.x + 0.5, c.y + 0.5, c.w - 1, c.h - 1);
+    drawShopIcon(it, c.x + 8, c.y + 8, t);
+    ctx.textAlign = 'left'; ctx.font = 'bold 13px monospace'; ctx.fillStyle = '#f4ecff'; ctx.fillText(shopName(it), c.x + 72, c.y + 24);
+    ctx.font = '11px monospace'; ctx.fillStyle = '#b0a0b8'; ctx.fillText(it.d, c.x + 72, c.y + 42);
+    const gated = it.kind === 'wisp' && !unlocked.crystals_666;
+    if (gated) { ctx.fillStyle = '#8a7a80'; ctx.fillText('нужны «Три шестёрки»', c.x + 72, c.y + 58); }
+    ctx.font = 'bold 14px monospace';
+    if (eq) { ctx.fillStyle = '#7ad86a'; ctx.fillText('✓ надето', c.x + 8, c.y + c.h - 12); }
+    else if (owned) { ctx.fillStyle = '#c0b0c8'; ctx.fillText('куплено', c.x + 8, c.y + c.h - 12); }
+    else if (shopArmed === i) { ctx.fillStyle = '#ffe680'; ctx.fillText('купить?', c.x + 8, c.y + c.h - 12); crystalNum(it.price, c.x + 8 + ctx.measureText('купить?').width + 8, c.y + c.h - 12, 14, '#ffe680'); }
+    else crystalNum(it.price, c.x + 8, c.y + c.h - 12, 14, can && !gated ? '#ffe680' : '#7a5a60');
+  });
+  centerText(gp.on ? 'стик — выбор   •   A купить / надеть   •   B назад' : 'стрелки — выбор   •   Enter купить / надеть   •   ESC назад', H - 44, 13, '#ddd', false);
+}
+
 // ── автор: неброская подпись, ссылка спрятана в ник (без подсветки) ──
 // ── бейдж стримера: статус эфира через decapi.me (публичный прокси к Twitch, без ключей) ──
 const TWITCH = { login: 'dear_hellgirl', url: 'https://www.twitch.tv/dear_hellgirl', live: null, uptime: '', title: '', t: 0, next: 0 };
@@ -1056,7 +1193,7 @@ async function pollTwitch() {
     else if (/\d/.test(up)) {
       TWITCH.live = true;
       const h = /(\d+)\s*hour/.exec(up), m = /(\d+)\s*minute/.exec(up);
-      TWITCH.uptime = (h ? h[1] + ' ч ' : '') + (m ? m[1] + ' мин' : '');
+      TWITCH.uptime = h ? h[1] + ':' + String(m ? m[1] : 0).padStart(2, '0') : (m ? m[1] + ' мин' : ''); // компактно: 1:07 или 23 мин
       try { TWITCH.title = (await (await fetch(`https://decapi.me/twitch/title/${TWITCH.login}`, { cache: 'no-store' })).text()).trim().slice(0, 40); } catch (e) {}
     }
   } catch (e) { /* сеть недоступна — статус остаётся неизвестным */ }
@@ -1074,7 +1211,9 @@ function drawTwitch(t, dt) {
   if (TWITCH.live) {
     const pulse = 0.6 + 0.4 * Math.sin(t * 5);
     ctx.fillStyle = `rgba(255,60,60,${pulse})`; ctx.beginPath(); ctx.arc(b.x + 66, b.y + 44, 4, 0, 7); ctx.fill();
-    ctx.fillStyle = '#ff8a8a'; ctx.fillText('В ЭФИРЕ' + (TWITCH.uptime ? '  ' + TWITCH.uptime : ''), b.x + 76, b.y + 48);
+    const live = 'В ЭФИРЕ' + (TWITCH.uptime ? ' · ' + TWITCH.uptime : ''), maxW = b.x + b.w - 10 - (b.x + 76);
+    if (ctx.measureText(live).width > maxW) ctx.font = '11px monospace'; // не упираться в рамку
+    ctx.fillStyle = '#ff8a8a'; ctx.fillText(live, b.x + 76, b.y + 48);
   } else if (TWITCH.live === false) {
     ctx.fillStyle = '#8a7a9a'; ctx.beginPath(); ctx.arc(b.x + 66, b.y + 44, 4, 0, 7); ctx.fill();
     ctx.fillStyle = '#b0a0c0'; ctx.fillText('не в эфире', b.x + 76, b.y + 48);
@@ -1086,7 +1225,7 @@ function drawTwitch(t, dt) {
   ctx.restore();
 }
 const AUTHOR = { name: 'Nelfias', url: 'https://t.me/nelfias_cosph' };
-const AUTHOR_BTN = { x: W - 190, y: H - 76, w: 178, h: 22 }; // над кромкой лавы
+const AUTHOR_BTN = { x: W - 190, y: H - 100, w: 178, h: 22 }; // над кнопкой лавки
 let authorHover = false;
 function drawAuthor() {
   ctx.textAlign = 'right'; ctx.font = '14px monospace'; ctx.fillStyle = 'rgba(208,176,184,0.75)';
@@ -1191,7 +1330,7 @@ function burst(x, y, col, n = 10, spd = 200) {
   for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = spd * (0.3 + Math.random()); G.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 100, col, t: 0, life: 0.4 + Math.random() * 0.4 }); }
 }
 function landDust(p, n) {
-  for (let i = 0; i < n; i++) G.parts.push({ x: p.x + Math.random() * p.w, y: p.y + p.h, vx: (Math.random() - 0.5) * 160 - G.speed * 0.2, vy: -40 - Math.random() * 60, col: '#8a7a80', t: 0, life: 0.3 + Math.random() * 0.3, s: 3 });
+  for (let i = 0; i < n; i++) G.parts.push({ x: p.x + Math.random() * p.w, y: p.y + p.h, vx: (Math.random() - 0.5) * 160 - G.speed * 0.2, vy: -40 - Math.random() * 60, col: dustCol(), t: 0, life: 0.3 + Math.random() * 0.3, s: 3 });
 }
 function hurt(p, kx) {
   if (p.inv > 0 || p.dead) return;
@@ -1298,11 +1437,18 @@ function update(dt) {
     p.anim += dt * (8 + g.speed / 60);
     // косметика: пыль из-под ног на земле, огонёк-спутник летит за спиной
     g.dustAcc = (g.dustAcc || 0) + dt * (4 + g.speed / 80);
-    if (p.ground && g.dustAcc >= 1) { g.dustAcc = 0; g.parts.push({ x: p.x + 4, y: p.y + p.h - 2, vx: -g.speed * 0.35 - 30, vy: -20 - Math.random() * 30, col: SKINS[skin].col, t: 0, life: 0.35 + Math.random() * 0.25, s: 3 }); }
+    if (p.ground && g.dustAcc >= 1) {
+      g.dustAcc = 0; const tr = TRAILS[SHOP.eq.trail];
+      if (!tr) g.parts.push({ x: p.x + 4, y: p.y + p.h - 2, vx: -g.speed * 0.35 - 30, vy: -20 - Math.random() * 30, col: SKINS[skin].col, t: 0, life: 0.35 + Math.random() * 0.25, s: 3 });
+      else { // купленный след
+        const rnd = a => a[0] + Math.random() * (a[1] - a[0]), n = tr.rate >= 1 ? 1 + (Math.random() < tr.rate - 1 ? 1 : 0) : (Math.random() < tr.rate ? 1 : 0);
+        for (let k = 0; k < n; k++) g.parts.push({ x: p.x + 4 + Math.random() * 8, y: p.y + p.h - 2 - Math.random() * 6, vx: -g.speed * 0.35 - 30, vy: rnd(tr.vy), col: tr.cols[(Math.random() * tr.cols.length) | 0], t: 0, life: rnd(tr.life), s: Math.round(rnd(tr.s)) });
+      }
+    }
     if (!g.wisp && unlocked.crystals_666) g.wisp = { x: p.x - 30, y: p.y + 10, ph: 0 }; // огонёк-спутник — награда за «Три шестёрки»
     if (g.wisp) { const wz = g.wisp, tx = p.x - 34 + Math.sin(g.t * 2.1) * 6, ty = p.y + 8 + Math.sin(g.t * 3.3) * 10;
     wz.x += (tx - wz.x) * Math.min(1, dt * 6); wz.y += (ty - wz.y) * Math.min(1, dt * 6); wz.ph += dt;
-    if (Math.random() < dt * 12) g.parts.push({ x: wz.x, y: wz.y, vx: -g.speed * 0.5, vy: -30 - Math.random() * 40, col: SKINS[skin].wisp, t: 0, life: 0.4 + Math.random() * 0.3, s: 2 }); }
+    if (Math.random() < dt * 12) g.parts.push({ x: wz.x, y: wz.y, vx: -g.speed * 0.5, vy: -30 - Math.random() * 40, col: wispCol(), t: 0, life: 0.4 + Math.random() * 0.3, s: 2 }); }
   }
 
   // ── враги ──
@@ -1377,7 +1523,7 @@ function drawBg(camX, t) {
 function drawLava(camX, t) {
   const lw = MANIFEST.lava.w, lh = MANIFEST.lava.h; // кадр может быть зеркальной парой (бесшовный повтор)
   const f = (t * 3 | 0) % 2, off = -(camX * 0.9) % lw;
-  const bob = Math.sin(t * 4) * 3;
+  const bob = Math.sin(t * 4) * 3 - 8; // на 8 px выше: верх лавы всегда под нижней кромкой платформ (496), без зазора
   for (let x = off - lw; x < W + lw; x += lw) spr('lava', f, x, LAVA_Y + bob, false, lw, lh);
   ctx.fillStyle = '#c8300a'; ctx.fillRect(0, LAVA_Y + lh + bob - 1, W, H);
   drawSparks(camX, bob);
@@ -1485,7 +1631,7 @@ function drawWorld() {
   for (const q of g.parts) { const sz = q.s || 5; ctx.globalAlpha = 1 - q.t / q.life; ctx.fillStyle = q.col; ctx.fillRect(q.x - cx - sz / 2, q.y - sz / 2, sz, sz); }
   if (g.wisp && !p.dead) { // огонёк-спутник: ядро + мягкое свечение
     const wx = g.wisp.x - cx, wy = g.wisp.y, r = 5 + Math.sin(g.wisp.ph * 8) * 1.2;
-    ctx.globalAlpha = 0.35; ctx.fillStyle = SKINS[skin].wisp; ctx.beginPath(); ctx.arc(wx, wy, r * 2.2, 0, 7); ctx.fill();
+    ctx.globalAlpha = 0.35; ctx.fillStyle = wispCol(); ctx.beginPath(); ctx.arc(wx, wy, r * 2.2, 0, 7); ctx.fill();
     ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(wx, wy, r, 0, 7); ctx.fill(); ctx.fillStyle = '#fff8e0'; ctx.beginPath(); ctx.arc(wx - 1, wy - 1, r * 0.45, 0, 7); ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -1602,6 +1748,7 @@ function drawMenu(t) {
   if (best) centerText('рекорд: ' + best, 216, 17, '#ffb0a8');
   drawAchButton(ACH_BTN);
   panel(STATS_BTN.x, STATS_BTN.y, STATS_BTN.w, STATS_BTN.h); ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#ffe680'; iconLabel(STATS_BTN, '☰', 'Статистика');
+  panel(SHOP_BTN.x, SHOP_BTN.y, SHOP_BTN.w, SHOP_BTN.h); ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#ffe680'; spr('shop', 0, SHOP_BTN.x + 12, SHOP_BTN.y + 8, false, 24, 24); ctx.textAlign = 'left'; ctx.fillText('Лавка', SHOP_BTN.x + 42, SHOP_BTN.y + 27); crystalNum(shopBalance(), SHOP_BTN.x + SHOP_BTN.w - 12, SHOP_BTN.y + 27, 16, '#ffe680', 'right');
   drawAuthor();
   drawTwitch(t, 1 / 60);
 }
@@ -1693,9 +1840,10 @@ function loop(ts) {
   requestAnimationFrame(loop);
   let dt = Math.min(0.05, (ts - last) / 1000 || 0); last = ts;
   pollGamepad();
-  if (state === 'menu' || state === 'stats' || (state === 'ach' && achFrom === 'menu')) {
+  if (state === 'menu' || state === 'stats' || state === 'shop' || (state === 'ach' && achFrom === 'menu')) {
     menuT += dt; drawMenu(menuT);
     if (state === 'ach') { drawAchScreen(); jumpPressed = false; return; }
+    if (state === 'shop') { drawShopScreen(menuT); drawToasts(dt); jumpPressed = false; return; }
     if (state === 'stats') { drawStatsScreen(); jumpPressed = false; return; }
     drawToasts(dt);
     if (jumpPressed) { jumpPressed = false; startGame('endless'); }
@@ -1737,5 +1885,5 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {}));
 }
 // отладочный хук (для автотестов из консоли)
-window.HELLKA = { get G() { return G; }, get state() { return state; }, start: startGame, jump: () => { jumpPressed = true; }, step: dt => { if (state === 'play') update(dt); }, keys, tb, MUSIC, SFX_EL, ACH, unlocked, STATS, toasts, setState: v => { state = v; }, TWITCH, TILESETS, SPARKS, DAILY, dailyKey, renderShareCard, get mode() { return mode; }, pollGamepad, gp, SKINS, SKIN_IMG, applySkin, nextSkin, get skin() { return skin; } };
+window.HELLKA = { get G() { return G; }, get state() { return state; }, start: startGame, jump: () => { jumpPressed = true; }, step: dt => { if (state === 'play') update(dt); }, keys, tb, MUSIC, SFX_EL, ACH, unlocked, STATS, toasts, setState: v => { state = v; }, TWITCH, TILESETS, SPARKS, DAILY, dailyKey, renderShareCard, get mode() { return mode; }, pollGamepad, gp, SKINS, SKIN_IMG, applySkin, nextSkin, get skin() { return skin; }, SHOP, SHOP_ITEMS, shopActivate, openShop, shopBalance, get shopSel() { return shopSel; } };
 })();

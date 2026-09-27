@@ -112,6 +112,11 @@ Pixel art seamless horizontally tileable parallax layer, 1920x1080, on a transpa
 Pixel art seamless horizontally tileable parallax foreground layer, 1920x1080, transparent background wherever there is no rock: dark volcanic rock spires and cliffs in the bottom third, hanging iron chains and red banners with a trident emblem from the top edge, a stone gargoyle head. No characters, no text. 16-bit SNES style, crisp pixels, no anti-aliasing, limited palette, dark fantasy hell theme with crimson / black / orange accents, game asset layer.
 ```
 
+### shop.png — иконка лавки (кнопка в меню, ~24×24)
+```
+Pixel art game icon, square, single centered object: a small leather coin pouch tied with a golden string, a red crystal peeking out of the opening, dark outline, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+
 ### twitch.png
 
 ```
@@ -156,6 +161,40 @@ Pixel art square avatar icon, close-up of chibi devil girl Hellka face: bright r
 ### dark_skin/avatar.png — портрет тёмного скина
 ```
 Pixel art square avatar icon, close-up of a chibi devil girl face: long dark purple hair with magenta highlights, small blue-violet horns, long pointed elf ears, big red eyes with a soft blush on the cheeks, slight smile, dark choker with a small pendant, black hoodie collar visible at the bottom. Dark stone frame border, moody dark palette with purple and teal-blue accents. 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+
+### Скины из лавки (за кристаллы)
+
+Покупаются в «Лавке» за накопленные кристаллы, папки `assets_raw/frost_skin/`, `assets_raw/cozy_skin/`, `assets_raw/streamer_skin/` — тот же набор GIF (running, jump, punch, death) + `avatar.png`. Делать через «Edit character» от базовой Хеллки, чтобы сохранить пропорции и позы.
+
+#### Ледяная Хеллка — `frost_skin/` (PixelLab)
+```
+Chibi devil girl with long pale ice-blue hair with white frosty tips, small translucent crystal-ice horns, pointed ears, big light cyan eyes, cool calm expression, wearing a white off-shoulder top with a fluffy fur collar, light blue pleated skirt with a snowflake pattern, white thigh-high boots with fur trim, thin pale blue devil tail with an icicle arrow tip, running pose, side view, crisp edges, bold color contrast, cold palette of white, ice blue and silver.
+```
+
+#### frost_skin/avatar.png
+```
+Pixel art square avatar icon, close-up of a chibi devil girl face: long pale ice-blue hair with white frosty tips, small translucent crystal-ice horns, pointed ears, big light cyan eyes, cool calm expression, fluffy white fur collar at the bottom. Dark stone frame border with a thin icy blue line, cold palette of white, ice blue and silver. 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+
+#### Уютная Хеллка — `cozy_skin/` (PixelLab)
+```
+Chibi devil girl with long bright red hair tied in a messy loose bun, small red horns, pointed ears, big sleepy half-closed blue eyes, wearing oversized pastel pink pajamas with a tiny black bat print, a fluffy pink sleeping cap with a pom-pom, big fluffy black slipper boots, thin red devil tail with arrow tip wrapped in a small pink ribbon, running pose, side view, crisp edges, bold color contrast, soft warm palette of pink, cream and red.
+```
+
+#### cozy_skin/avatar.png
+```
+Pixel art square avatar icon, close-up of a chibi devil girl face: bright red hair in a messy loose bun under a fluffy pink sleeping cap with a pom-pom, small red horns, pointed ears, big sleepy half-closed blue eyes, small yawn, pastel pink pajama collar at the bottom. Dark stone frame border with a thin pink line, soft warm palette of pink, cream and red. 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+
+#### Хеллка-стримерша — `streamer_skin/` (PixelLab)
+```
+Chibi devil girl with long bright red hair in twin tails, small red horns, pointed ears, big blue eyes, excited wide smile, wearing large purple gaming headphones with cat ears and glowing pink LEDs, a black cropped hoodie with a purple play-button logo on the chest, dark purple shorts with a pink belt, black thigh-high boots with purple laces, thin red devil tail with a heart-shaped arrow tip, running pose, side view, crisp edges, bold color contrast, black, twitch-purple and neon pink palette.
+```
+
+#### streamer_skin/avatar.png
+```
+Pixel art square avatar icon, close-up of a chibi devil girl face: bright red hair in twin tails, small red horns, big blue eyes, excited wide smile, large purple gaming headphones with cat ears and glowing pink LEDs, black hoodie collar at the bottom. Dark stone frame border with a thin neon purple line, black, twitch-purple and neon pink palette. 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
 ```
 
 ## Враги
@@ -391,6 +430,16 @@ Pixel art achievement badge icon, square, single centered object: a winged black
 ### midnight.png
 ```
 Pixel art achievement badge icon, square, single centered object: a crescent blood-red moon with a tiny devil-horned silhouette sitting on it, a few stars. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing, no text.
+```
+
+### shop_first.png — Транжира (первая покупка в лавке)
+```
+Pixel art achievement badge icon, square, single centered object: an open velvet coin pouch spilling glowing red crystals onto a dark stone counter, a small golden price tag hanging from the pouch. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing.
+```
+
+### shop_all.png — Коллекционерка (куплено всё в лавке)
+```
+Pixel art achievement badge icon, square, single centered object: a dark wooden display shelf with a golden crown, a pink flower petal, a blue ice shard and a small glowing wisp flame lined up on it, every slot filled, golden sparkles around. Dark stone frame border, crimson and gold palette, transparent background, 16-bit SNES style, crisp pixels, no anti-aliasing.
 ```
 
 ## Советы

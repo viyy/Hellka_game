@@ -142,7 +142,7 @@ hurt = gif_frames(raw('side_view_running_cy_taking-punch_north-east'), pick=[2])
 save_sheet('player_hurt', hurt, target_h=round(hurt[0].height * S))
 
 # ── дополнительные скины: assets_raw/<папка>/ → assets/skins/<id>/ (без перекраски) ──
-SKIN_DIRS = {'dark': 'dark_skin', 'queen': 'queen_skin'}
+SKIN_DIRS = {'dark': 'dark_skin', 'queen': 'queen_skin', 'frost': 'frost_skin', 'cozy': 'cozy_skin', 'streamer': 'streamer_skin'}
 def raw_in(d, sub):
     for f in sorted(os.listdir(d)):
         if sub in f.lower() and f.lower().endswith(('.gif', '.png')): return os.path.join(d, f)
@@ -277,6 +277,14 @@ if tw:
     m = max(im.size); sq = Image.new('RGBA', (m, m), (0, 0, 0, 0)); sq.paste(im, ((m - im.width) // 2, (m - im.height) // 2), im)
     sq.resize((40, 40), Image.LANCZOS).save(os.path.join(OUT, 'twitch.png')); manifest['twitch'] = {'frames': 1, 'w': 40, 'h': 40}; print('twitch 40x40')
 
+# ── иконка лавки (необязательно): assets_raw/shop.png → assets/shop.png 24x24 ──
+sh = raw_named('shop.png')
+if sh:
+    im = chroma_key(Image.open(sh)); bb = alpha_bbox(im)
+    if bb: im = im.crop(bb)
+    m = max(im.size); sq = Image.new('RGBA', (m, m), (0, 0, 0, 0)); sq.paste(im, ((m - im.width) // 2, (m - im.height) // 2), im)
+    sq.resize((24, 24), Image.LANCZOS).save(os.path.join(OUT, 'shop.png')); manifest['shop'] = {'frames': 1, 'w': 24, 'h': 24}; print('shop 24x24')
+
 # ── иконки усилений (необязательно): assets_raw/powerups/<id>.png → assets/pw_<id>.png 30x30 ──
 pw_raw = os.path.join(RAW, 'powerups'); n_pw = 0
 if os.path.isdir(pw_raw):
@@ -365,7 +373,7 @@ print('og.png 1200x630')
 
 # ── иконки достижений: assets_raw/ach/<id>.png → assets/ach/<id>.png 64x64 ──
 ACH_IDS = ['first_run', 'score_500', 'score_1000', 'score_2500', 'crystals_50', 'coins_50', 'stomp_10', 'speed_2', 'speed_max', 'survive_60', 'no_hit_500', 'deaths_10',
-           'score_666', 'score_6666', 'crystals_666', 'last_heart_60', 'combo_40', 'visit', 'lava_66', 'ghost', 'pacifist', 'perfectionist', 'phoenix', 'daredevil', 'marathon', 'midnight', 'hidden']
+           'score_666', 'score_6666', 'crystals_666', 'last_heart_60', 'combo_40', 'visit', 'lava_66', 'ghost', 'pacifist', 'perfectionist', 'phoenix', 'daredevil', 'marathon', 'midnight', 'shop_first', 'shop_all', 'hidden']
 ach_raw = next((os.path.join(RAW, d) for d in ('ach', 'achiv', 'achievements') if os.path.isdir(os.path.join(RAW, d))), os.path.join(RAW, 'ach')); ach_out = os.path.join(OUT, 'ach'); os.makedirs(ach_out, exist_ok=True); n_ach = 0
 for aid in ACH_IDS:
     src_p = os.path.join(ach_raw, aid + '.png')
