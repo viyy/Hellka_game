@@ -784,7 +784,7 @@ const ACH = [
   { id: 'score_6666',   t: 'Княжна Тьмы',    d: '6666 очков за один забег',          f: r => r.score >= 6666 },
   { id: 'crystals_666', t: 'Три шестёрки',   d: '666 кристаллов · огонёк-спутник',       f: (r, tot) => tot.crystals + r.crystals >= 666 },
   { id: 'last_heart_60',t: 'Не сегодня',     d: '60 секунд на последнем сердце',     f: r => r.p.hp === 1 && r.hp1T >= 0 && r.t - r.hp1T >= 60 },
-  { id: 'combo_40',     t: 'Без промаха',    d: 'Комбо 40 — множитель ×3',           f: r => r.comboMax >= 40 },
+  { id: 'combo_40',     t: 'Без промаха',    d: 'Комбо 20 — множитель ×3',           f: r => r.comboMax >= 20 },
   // скрытые: условия и иконки не показываются, пока не открыты
   { id: 'ghost',        t: 'Призрак',        d: '2000 очков без единого урона',      hidden: true, f: r => r.score >= 2000 && r.hits === 0 },
   { id: 'pacifist',     t: 'Пацифистка',     d: '90 секунд, не тронув ни беса',      hidden: true, f: r => r.t >= 90 && r.stomps === 0 },
@@ -932,7 +932,7 @@ function pickPowerup(r) {
   return 'heart';
 }
 // комбо: подряд собранные предметы без пропусков и урона. Множитель ×1 → ×1.5 (10) → ×2 (20) → ×2.5 (30) → ×3 (40)
-function comboMult() { return 1 + Math.min(4, Math.floor(G.combo / 10)) * 0.5; }
+function comboMult() { return 1 + Math.min(8, Math.floor(G.combo / 5)) * 0.5; } // +0.5 за каждые 5 комбо: ×3 на 20, ×5 на 40
 function addScore(n, useCombo = true) {
   const m = (G.pw.x2 > 0 ? 2 : 1) * (useCombo ? comboMult() : 1);
   const v = Math.round(n * m); G.score += v; return v;
@@ -1103,7 +1103,7 @@ function dailyBest() { return DAILY.date === dailyKey() ? DAILY.best : 0; }
 function startGame(m) {
   mode = m || mode;
   G = {
-    t: 0, camX: 0, speed: 200, score: 0, crystals: 0, coins: 0, dist: 0, stomps: 0, hits: 0, achT: 0, missedCrystals: 0, gapCrystals: 0, hp1Score: -1, hp1T: -1, lavaDeath: false, zoneTile: 'tile', zoneLeft: 0, ceilLeft: 0, lastCeil: null, pw: { magnet: 0, x2: 0, fire: 0, shield: false }, shots: [], combo: 0, comboMax: 0, comboFlash: 0,
+    t: 0, camX: 0, speed: 200, score: 0, distAcc: 0, crystals: 0, coins: 0, dist: 0, stomps: 0, hits: 0, achT: 0, missedCrystals: 0, gapCrystals: 0, hp1Score: -1, hp1T: -1, lavaDeath: false, zoneTile: 'tile', zoneLeft: 0, ceilLeft: 0, lastCeil: null, pw: { magnet: 0, x2: 0, fire: 0, shield: false }, shots: [], combo: 0, comboMax: 0, comboFlash: 0,
     plats: [], items: [], enemies: [], parts: [], texts: [],
     genX: 0, lastY: LEVELS[0], rnd: mulberry(mode === 'daily' ? dailySeed() : (Date.now() & 0xffff)), mode,
     p: { x: 120, y: 300, w: 30, h: 66, vx: 0, vy: 0, ground: false, jumps: 0, hp: 5, inv: 0, anim: 0, face: 1, dead: false, deadT: 0 },
@@ -1207,6 +1207,7 @@ function hurt(p, kx) {
 function die() {
   const p = G.p; if (p.dead) return;
   p.dead = true; p.deadT = 0; p.vy = -500; SFX.dead(); G.shake = 0.6; MUSIC.stop();
+  if (G.score >= 663 && G.score < 670) G.score = 666; // «Княжулечка Тьмулички»: окно 663–669 притягивается к 666
   if (G.mode === 'daily') {
     if (DAILY.date !== dailyKey()) { DAILY.date = dailyKey(); DAILY.best = 0; DAILY.runs = 0; }
     DAILY.runs++; DAILY.best = Math.max(DAILY.best, Math.floor(G.score)); localStorage.setItem('hellka_daily', JSON.stringify(DAILY));
@@ -1219,10 +1220,11 @@ function update(dt) {
   const g = G, p = g.p;
   g.t += dt;
   // скорость растёт плавно, потолок 560 px/s (стартовая 200)
-  g.speed = Math.min(560, 200 + g.t * 2.2 + Math.pow(g.t, 1.35) * 0.5);
+  g.speed = Math.min(560, g.t <= 75 ? 200 + g.t * (200 / 75) : 400 + (g.t - 75) * (160 / 75)); // 2x на 75 с, 2.8x на 150 с
   g.camX += g.speed * dt;
   g.dist += g.speed * dt;
-  addScore(g.speed * dt * 0.02, false); // очки за дистанцию (без комбо)
+  // очки за дистанцию (без комбо): копим дробь, иначе покадровое округление в addScore даёт 0
+  g.distAcc += g.speed * dt * 0.04 * (g.pw.x2 > 0 ? 2 : 1); const dw = Math.floor(g.distAcc); if (dw) { g.distAcc -= dw; g.score += dw; }
   for (const k of ['magnet', 'x2', 'fire']) if (g.pw[k] > 0) g.pw[k] = Math.max(0, g.pw[k] - dt);
   if (g.shake > 0) g.shake -= dt;
   if (g.comboFlash > 0) g.comboFlash -= dt;
@@ -1290,7 +1292,7 @@ function update(dt) {
     if (p.x <= minX + 0.5) for (const pl of g.plats) if (p.x + p.w > pl.x + 1 && p.x < pl.x + pl.w && p.y + p.h > pl.y + 8 && p.y < pl.y + pl.h) die();
     // шипы
     for (const pl of g.plats) for (const s of pl.spikes)
-      if (p.x + p.w - 6 > s.x && p.x + 6 < s.x + s.w && p.y + p.h > pl.y - 20 && p.y + p.h <= pl.y + 4) hurt(p, g.speed - 250);
+      if (p.x + p.w - 8 > s.x && p.x + 8 < s.x + s.w && p.y + p.h - (p.ground ? 0 : 10) > pl.y - 14 && p.y + p.h <= pl.y + 4) hurt(p, g.speed - 250); // в прыжке ноги подтянуты — хитбокс короче
     // лава
     if (p.y + p.h > LAVA_Y + 20) { burst(p.x + p.w / 2, LAVA_Y, '#ffb03a', 20, 260); p.hp = 0; G.lavaDeath = true; die(); }
     p.anim += dt * (8 + g.speed / 60);
@@ -1528,7 +1530,7 @@ function drawHud() {
     ctx.save(); ctx.translate(W - 90, 88); ctx.scale(k, k);
     ctx.font = 'bold 18px monospace'; ctx.fillStyle = m >= 2 ? '#ff6a4a' : '#ffe680'; ctx.textAlign = 'right';
     ctx.fillText('КОМБО ' + g.combo + (m > 1 ? '  ×' + m : ''), 0, 0); ctx.restore();
-    const next = (Math.floor(g.combo / 10) + 1) * 10; if (g.combo < 40) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 210, 94, 120, 4); ctx.fillStyle = '#ffe680'; ctx.fillRect(W - 210, 94, 120 * ((g.combo % 10) / 10), 4); }
+    if (g.combo < 40) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 210, 94, 120, 4); ctx.fillStyle = '#ffe680'; ctx.fillRect(W - 210, 94, 120 * ((g.combo % 5) / 5), 4); }
   }
   // пауза
   panel(W - 70, 14, 54, 54); ctx.fillStyle = '#ddd';
