@@ -966,7 +966,7 @@ function pickPowerup(r) {
 // комбо: подряд собранные предметы без пропусков и урона. Множитель ×1 → ×1.5 (10) → ×2 (20) → ×2.5 (30) → ×3 (40)
 function comboMult() { return 1 + Math.min(8, Math.floor(G.combo / 5)) * 0.5; } // +0.5 за каждые 5 комбо: ×3 на 20, ×5 на 40
 function addScore(n, useCombo = true) {
-  const m = (G.pw.x2 > 0 ? 2 : 1) * (useCombo ? comboMult() : 1);
+  const m = (G.pw.x2 > 0 ? 2 : 1) * (useCombo ? comboMult() * G.speed / 200 : 1); // предметы и враги дорожают со скоростью (до ×2.8)
   const v = Math.round(n * m); G.score += v; return v;
 }
 function comboUp() { G.combo++; G.comboFlash = 0.35; if (G.combo > G.comboMax) G.comboMax = G.combo; }
@@ -1361,9 +1361,11 @@ function update(dt) {
   // скорость растёт плавно, потолок 560 px/s (стартовая 200)
   g.speed = Math.min(560, g.t <= 75 ? 200 + g.t * (200 / 75) : 400 + (g.t - 75) * (160 / 75)); // 2x на 75 с, 2.8x на 150 с
   g.camX += g.speed * dt;
-  g.dist += g.speed * dt;
-  // очки за дистанцию (без комбо): копим дробь, иначе покадровое округление в addScore даёт 0
-  g.distAcc += g.speed * dt * 0.04 * (g.pw.x2 > 0 ? 2 : 1); const dw = Math.floor(g.distAcc); if (dw) { g.distAcc -= dw; g.score += dw; }
+  if (!p.dead) { // после смерти дистанция и очки не растут (итог зафиксирован в die)
+    g.dist += g.speed * dt;
+    // очки за дистанцию (без комбо): копим дробь, иначе покадровое округление в addScore даёт 0
+    g.distAcc += g.speed * dt * 0.04 * (g.pw.x2 > 0 ? 2 : 1); const dw = Math.floor(g.distAcc); if (dw) { g.distAcc -= dw; g.score += dw; }
+  }
   for (const k of ['magnet', 'x2', 'fire']) if (g.pw[k] > 0) g.pw[k] = Math.max(0, g.pw[k] - dt);
   if (g.shake > 0) g.shake -= dt;
   if (g.comboFlash > 0) g.comboFlash -= dt;
